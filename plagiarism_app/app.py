@@ -74,6 +74,40 @@ def load_model():
 
 
 # ─────────────────────────────────────────────────────────
+# AUTO-PLAGIARISM SIMULATION (NEW)
+# ─────────────────────────────────────────────────────────
+
+def auto_generate_plagiarized(clean_text: str) -> tuple[str, str, dict]:
+    """
+    Simulate student plagiarism from clean original text.
+    Returns: (suspected_plag_text, original_clean_text, simulation_stats)
+    """
+    sentences = split_into_sentences(clean_text)
+    plag_sentences = []
+    verbatim_count = 0
+    rewritten_count = 0
+    
+    for sent in sentences:
+        if random.random() < 0.7:  # 70% verbatim copy (plagiarism)
+            plag_sentences.append(sent)
+            verbatim_count += 1
+        else:  # 30% light rewrite (student attempt)
+            light_rewrite = rewrite_sentence_human(sent, sent)["rewritten"]  # Use itself as "source" for light change
+            plag_sentences.append(light_rewrite)
+            rewritten_count += 1
+    
+    suspected_text = " ".join(plag_sentences)
+    stats = {
+        "verbatim_sentences": verbatim_count,
+        "rewritten_sentences": rewritten_count,
+        "total_sentences": len(sentences),
+        "plagiarism_ratio": round(verbatim_count / len(sentences) * 100, 1)
+    }
+    
+    return suspected_text, clean_text, stats
+
+
+# ─────────────────────────────────────────────────────────
 # SYNONYM & REWRITING ENGINE
 # ─────────────────────────────────────────────────────────
 
@@ -771,6 +805,135 @@ def check_plagiarism():
     result["plagiarized_count"] = sum(1 for s in sentence_analysis if s["is_plagiarized"])
     
     return jsonify(result)
+
+
+@app.route("/api/verify_rewrite", methods=["POST"])
+def verify_rewrite():
+    """
+    Verify user rewrite: current plag % + similarity to original plag sentence.
+    Preserves meaning check while reducing plagiarism score.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON data provided"}), 400
+
+    original_source = data.get("original_source", "").strip()
+    original_plag = data.get("original_plag", "").strip()  
+    user_rewrite = data.get("user_rewrite", "").strip()
+
+    if not all([original_source, original_plag, user_rewrite]):
+        return jsonify({"error": "All three texts required"}), 400
+
+    # Current plagiarism score (user_rewrite vs original_source)
+    current_analysis = analyze_pair(original_source, user_rewrite)
+    
+    # Similarity to original plag (meaning preservation)
+    meaning_sim = compute_text_similarity(original_plag, user_rewrite)
+    
+    # Improvement metrics
+    original_plag_score = compute_text_similarity(original_source, original_plag)
+    
+    improvements = {
+        "plagiarism_reduced": round((original_plag_score - current_analysis["metrics"]["sequence_similarity"]) * 100, 1),
+        "meaning_preserved": round(meaning_sim * 100, 1),
+        "word_overlap_change": round((compute_word_overlap(original_plag, user_rewrite) - compute_word_overlap(original_source, original_plag)) * 100, 1)
+    }
+
+    result = {
+        "current_plagiarism_score": current_analysis["overall_score"],
+        "current_severity": current_analysis["severity"],
+        "meaning_preserved_pct": improvements["meaning_preserved"],
+        "plagiarism_reduction_pct": improvements["plagiarism_reduced"],
+        "word_changes_summary": improvements,
+        "status": "meaning_preserved" if meaning_sim > 0.7 else "meaning_changed" if meaning_sim > 0.4 else "meaning_lost",
+        "recommendation": "Great rewrite! ✅" if current_analysis["overall_score"] < 20 and meaning_sim > 0.7 else "Good progress 👌" if current_analysis["overall_score"] < 50 else "Needs more rewriting ⚠️"
+    }
+    
+    return jsonify(result)
+
+
+@app.route("/api/auto_plag", methods=["POST"])
+def auto_plagiarism_pipeline():
+    """
+    FULLY AUTOMATIC 4-STEP WORKFLOW:
+    1. User enters clean text
+    2. AUTO-generates suspected plagiarized version
+    3. Detects plagiarism
+    4. Reconstructs clean text + verifies similarity
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No JSON data provided"}), 400
+
+    clean_text = data.get("clean_text", "").strip()
+    if not clean_text:
+        return jsonify({"error": "Clean text required"}), 400
+
+    # Step 1: Auto-generate suspected plagiarized text
+    suspected_text, original_clean, simulation_stats = auto_generate_plagiarized(clean_text)
+
+    # Step 2: Detect plagiarism (source=original_clean, suspected=suspected_text)
+    detection = analyze_pair(original_clean, suspected_text)
+
+    # Step 3: Auto-reconstruct (treat suspected as "text2", original as source)
+    sentences_suspected = split_into_sentences(suspected_text)
+    sentences_source = split_into_sentences(original_clean)
+    
+    sentence_analysis = []
+    reconstructed_sentences = []
+    
+    for sent_suspected in sentences_suspected:
+        best_source = ""
+        best_sim = 0
+        for sent_source in sentences_source:
+            sim = compute_text_similarity(sent_suspected, sent_source)
+            if sim > best_sim:
+                best_sim = sim
+                best_source = sent_source
+        
+        is_plag = best_sim >= 0.5
+        if is_plag:
+            rewrite_result = rewrite_sentence_human(sent_suspected, best_source)
+        else:
+            rewrite_result = {
+                "plagiarized": sent_suspected,
+                "rewritten": sent_suspected,
+                "changes_made": [],
+                "meaning_preserved": 1.0
+            }
+        
+        sentence_analysis.append({
+            "sentence": sent_suspected,
+            "source_match": best_source,
+            "similarity": round(best_sim, 3),
+            "is_plagiarized": is_plag,
+            "rewrite": rewrite_result,
+        })
+        reconstructed_sentences.append(rewrite_result["rewritten"])
+    
+    reconstructed_text = " ".join(reconstructed_sentences)
+
+    # Step 4: Verify similarity (reconstructed vs suspected)
+    final_similarity = compute_text_similarity(suspected_text, reconstructed_text)
+    meaning_preserved_pct = round(final_similarity * 100, 1)
+
+    return jsonify({
+        "workflow": "complete",
+        # Step 1
+        "original_clean": original_clean,
+        "auto_suspected": suspected_text,
+        "simulation_stats": simulation_stats,
+        # Step 2
+        "detection": detection,
+        "sentence_analysis": sentence_analysis,
+        # Step 3
+        "reconstructed_text": reconstructed_text,
+        # Step 4
+        "similarity_check": {
+            "meaning_preserved_pct": meaning_preserved_pct,
+            "status": "excellent" if meaning_preserved_pct > 85 else "good" if meaning_preserved_pct > 70 else "fair"
+        }
+    })
 
 
 @app.route("/api/compare", methods=["POST"])

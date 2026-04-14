@@ -90,14 +90,21 @@
         </section>
 
         <!-- Mode Tabs -->
-        <section class="mode-section" id="mode-section">
+<section class="mode-section" id="mode-section">
             <div class="mode-tabs">
-                <button class="mode-tab active" id="tab-compare" onclick="switchMode('compare')">
+                <button class="mode-tab active" id="tab-auto" onclick="switchMode('auto')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    🚀 Auto Mode (NEW)
+                </button>
+                <button class="mode-tab" id="tab-compare" onclick="switchMode('compare')">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="2" y="3" width="8" height="18" rx="2"/>
                         <rect x="14" y="3" width="8" height="18" rx="2"/>
                     </svg>
-                    Compare Two Texts
+                    Manual Compare
                 </button>
                 <button class="mode-tab" id="tab-corpus" onclick="switchMode('corpus')">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -106,13 +113,55 @@
                         <line x1="12" y1="6" x2="12" y2="14"/>
                         <line x1="8" y1="10" x2="16" y2="10"/>
                     </svg>
-                    Check Against Corpus
+                    Bulk Scan
+                </button>
+                <button class="mode-tab" id="tab-verify" onclick="switchMode('verify')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    Verify Rewrite
                 </button>
             </div>
         </section>
 
-        <!-- Compare Mode -->
-        <section class="input-section" id="compare-mode">
+        <!-- AUTO Mode (NEW - Step 3) -->
+        <section class="input-section" id="auto-mode">
+            <div class="input-card" style="max-width: 800px; margin: 0 auto;">
+                <div class="input-header">
+                    <span class="input-label">✨ Paste Your ORIGINAL Clean Text Here</span>
+                    <span class="char-count" id="auto-char-count">0 chars</span>
+                </div>
+                <textarea 
+                    id="auto-clean-text" 
+                    class="text-input"
+                    placeholder="Enter your original text (1 textarea only)...&#10;System will AUTO:&#10;1️⃣ Generate plagiarized version&#10;2️⃣ Detect plagiarism %&#10;3️⃣ Reconstruct clean text&#10;4️⃣ Verify similarity"
+                    oninput="updateCharCount('auto-clean-text', 'auto-char-count')"
+                ></textarea>
+            </div>
+            <div class="action-row" style="justify-content: center; margin-top: 24px;">
+                <button class="btn-primary" id="btn-auto-run" onclick="runAutoPlagiarism()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22,4 12,14.01 9,11.01"/>
+                    </svg>
+                    🚀 Run Full Auto Workflow (4 Steps)
+                </button>
+                <button class="btn-secondary" onclick="clearAuto()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="1 4 1 10 7 10"/>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                    </svg>
+                    Clear
+                </button>
+                <button class="btn-secondary" onclick="loadAutoExample()">
+                    Load Example
+                </button>
+            </div>
+        </section>
+
+        <!-- Compare Mode (renamed to manual) -->
+        <section class="input-section hidden" id="compare-mode">
             <div class="input-grid">
                 <div class="input-card">
                     <div class="input-header">
@@ -191,6 +240,49 @@
                     ></textarea>
                 </div>
             </div>
+        </section>
+
+        <!-- Iterative Rewrite Mode -->
+        <!-- Single Sentence Iterative Mode -->
+            <section class="input-section hidden" id="rewrite-mode">
+                <div class="input-card" style="max-width: 800px; margin: 0 auto;">
+                    <div class="input-header">
+                        <span class="input-label">📝 Paste Suspected Plag Sentence</span>
+                        <span class="char-count" id="single-plag-count">0 chars</span>
+                    </div>
+                    <textarea 
+                        id="single-plag-input" 
+                        class="text-input"
+                        placeholder="Enter one sentence you want to reconstruct..."
+                        oninput="updateCharCount('single-plag-input', 'single-plag-count')"
+                    ></textarea>
+                </div>
+                <div class="action-row" style="justify-content: center; margin-top: 24px;">
+                    <button class="btn-primary" id="btn-generate-verify" onclick="generateAndVerifySingle()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22,4 12,14.01 9,11.01"/>
+                        </svg>
+                        Generate Reconstruction & Verify
+                    </button>
+                    <button class="btn-secondary" onclick="clearSingle()">
+                        Clear
+                    </button>
+                </div>
+            </section>
+            <div class="action-row">
+                <button class="btn-primary" id="btn-verify-rewrite" onclick="verifyRewrite()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22,4 12,14.01 9,11.01"/>
+                    </svg>
+                    Verify My Rewrite
+                </button>
+                <button class="btn-secondary" onclick="clearRewrite()">
+                    Clear All
+                </button>
+            </div>
+        </section>
             <div class="action-row">
                 <button class="btn-primary" id="btn-corpus-check" onclick="checkCorpus()">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -230,18 +322,146 @@
         // ─────────────────────────────────────────────
         // State
         // ─────────────────────────────────────────────
-        let currentMode = 'compare';
+        let currentMode = 'auto';  // Default to new Auto Mode
 
         // ─────────────────────────────────────────────
         // Mode Switching
         // ─────────────────────────────────────────────
         function switchMode(mode) {
             currentMode = mode;
+            
+            // Update tabs
+            document.getElementById('tab-auto').classList.toggle('active', mode === 'auto');
             document.getElementById('tab-compare').classList.toggle('active', mode === 'compare');
             document.getElementById('tab-corpus').classList.toggle('active', mode === 'corpus');
+            document.getElementById('tab-verify').classList.toggle('active', mode === 'verify');
+            
+            // Update sections
+            document.getElementById('auto-mode').classList.toggle('hidden', mode !== 'auto');
             document.getElementById('compare-mode').classList.toggle('hidden', mode !== 'compare');
             document.getElementById('corpus-mode').classList.toggle('hidden', mode !== 'corpus');
+            document.getElementById('rewrite-mode').classList.toggle('hidden', mode !== 'verify');
+            
             document.getElementById('results-section').classList.add('hidden');
+        }
+
+        function clearRewrite() {
+            document.getElementById('rewrite-original-source').value = '';
+            document.getElementById('rewrite-original-plag').value = '';
+            document.getElementById('rewrite-user-version').value = '';
+            document.getElementById('rewrite-source-count').textContent = '0 chars';
+            document.getElementById('rewrite-plag-count').textContent = '0 chars';
+            document.getElementById('rewrite-user-count').textContent = '0 chars';
+            document.getElementById('results-section').classList.add('hidden');
+        }
+
+        async function verifyRewrite() {
+            const original_source = document.getElementById('rewrite-original-source').value.trim();
+            const original_plag = document.getElementById('rewrite-original-plag').value.trim();
+            const user_rewrite = document.getElementById('rewrite-user-version').value.trim();
+
+            if (!user_rewrite) {
+                showError('Please write your reconstructed version.');
+                return;
+            }
+            if (!original_source || !original_plag) {
+                showError('Please fill source and original flagged sentence first.');
+                return;
+            }
+
+            showLoading('Verifying your rewrite...');
+
+            try {
+                const response = await fetch('/api/verify_rewrite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        original_source,
+                        original_plag,
+                        user_rewrite
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    renderVerifyResults(data);
+                } else {
+                    showError(data.error || 'Verification failed');
+                }
+            } catch (err) {
+                showError('Server error. New endpoint ready?');
+            }
+        }
+
+        function renderVerifyResults(data) {
+            const color = getSeverityColor(data.current_severity);
+            const gradient = getSeverityGradient(data.current_severity);
+            const statusClass = data.status === 'meaning_preserved' ? 'status-online' : 
+                               data.status === 'meaning_changed' ? 'status-fallback' : 'error-card';
+            const statusColor = data.status === 'meaning_preserved' ? '#22c55e' : 
+                               data.status === 'meaning_changed' ? '#f59e0b' : '#ef4444';
+
+            document.getElementById('results-content').innerHTML = `
+                <div class="results-card fade-in">
+                    <div class="score-display">
+                        <div class="score-circle" style="--score-color: ${color}; --score-gradient: ${gradient}">
+                            <svg class="score-svg" viewBox="0 0 120 120">
+                                <circle class="score-bg" cx="60" cy="60" r="54" />
+                                <circle class="score-progress" cx="60" cy="60" r="54" 
+                                    style="--score: ${data.current_plagiarism_score}; stroke: ${color}" />
+                            </svg>
+                            <div class="score-value">
+                                <span class="score-number">${data.current_plagiarism_score.toFixed(1)}</span>
+                                <span class="score-percent">%</span>
+                            </div>
+                        </div>
+                        <div class="verdict-text">
+                            <span class="verdict-badge" style="background: ${gradient}">${data.recommendation}</span>
+                            <span class="severity-label severity-${data.current_severity}">Current Plagiarism</span>
+                        </div>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value">${data.meaning_preserved_pct.toFixed(1)}%</span>
+                                <span class="metric-label">Meaning Preserved</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon" style="background: rgba(99, 102, 241, 0.15); color: #6366f1">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                    <polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value">${data.plagiarism_reduction_pct.toFixed(1)}%</span>
+                                <span class="metric-label">Plagiarism Reduced</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="status-badge ${statusClass}" style="justify-content: center; margin: 24px 0; color: ${statusColor}">
+                        <span class="status-dot" style="background: ${statusColor}"></span>
+                        <span>Status: ${data.status.replace('_', ' ').toUpperCase()}</span>
+                    </div>
+                </div>
+            `;
+
+            // Animate score
+            requestAnimationFrame(() => {
+                const circle = document.querySelector('.score-progress');
+                if (circle) {
+                    const circumference = 2 * Math.PI * 54;
+                    circle.style.strokeDasharray = circumference;
+                    circle.style.strokeDashoffset = circumference - (data.current_plagiarism_score / 100) * circumference;
+                }
+            });
         }
 
         // ─────────────────────────────────────────────
@@ -270,6 +490,12 @@
             document.getElementById('results-section').classList.add('hidden');
         }
 
+        function clearAuto() {
+            document.getElementById('auto-clean-text').value = '';
+            document.getElementById('auto-char-count').textContent = '0 chars';
+            document.getElementById('results-section').classList.add('hidden');
+        }
+
         function loadExample() {
             document.getElementById('text1').value = "The scientist discovered a new species of butterfly in the Amazon rainforest. She documented the findings in her research paper and presented them at the annual biology conference.";
             document.getElementById('text2').value = "The scientist discovered a new species of butterfly in the Amazon rainforest. She documented the findings in her research paper and presented them at the annual biology conference.";
@@ -282,6 +508,11 @@
             document.getElementById('corpus-source').value = "The teacher explains the topic. She handed in the report on time. He finished the project with success. They talked about the new strategy at the meeting. The manager approved the budget for the quarter.";
             updateCharCount('corpus-input', 'char-count-input');
             updateCharCount('corpus-source', 'char-count-corpus');
+        }
+
+        function loadAutoExample() {
+            document.getElementById('auto-clean-text').value = `The quick brown fox jumps over the lazy dog. This is a classic pangram sentence that contains every letter of the English alphabet. Scientists use it to test font rendering and text processing algorithms. The sentence was created in the 19th century and remains popular today. Variations exist in many languages around the world.`;
+            updateCharCount('auto-clean-text', 'auto-char-count');
         }
 
         function copyToClipboard(text, btnElement) {
@@ -767,6 +998,132 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // AUTO MODE JS (NEW)
+        async function runAutoPlagiarism() {
+            const cleanText = document.getElementById('auto-clean-text').value.trim();
+            if (!cleanText) {
+                showError('Please enter your original clean text.');
+                return;
+            }
+
+            showLoading('🧠 Running full 4-step workflow...\\n1. Generating plagiarized version...');
+
+            try {
+                const response = await fetch('/api/auto_plag', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clean_text: cleanText }),
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    renderAutoResults(data);
+                } else {
+                    showError(data.error || 'Auto workflow failed');
+                }
+            } catch (err) {
+                showError('Server error. Backend ready?');
+            }
+        }
+
+        function renderAutoResults(data) {
+            const plagRatio = data.simulation_stats.plagiarism_ratio;
+            const meaningPreserved = data.similarity_check.meaning_preserved_pct;
+            const color = getSeverityColor(data.detection.severity);
+            const gradient = getSeverityGradient(data.detection.severity);
+
+            document.getElementById('results-content').innerHTML = `
+                <div class="results-card fade-in">
+                    <h2 class="workflow-title">✅ Full 4-Step Workflow Complete!</h2>
+                    
+                    <!-- Step Timeline -->
+                    <div class="step-timeline">
+                        <div class="step-item step-1">
+                            <div class="step-number">1</div>
+                            <span>Auto-generated suspected text (${plagRatio}% plagiarized)</span>
+                        </div>
+                        <div class="step-item step-2">
+                            <div class="step-number">2</div>
+                            <span>Detected: ${data.detection.verdict} (${data.detection.overall_score}%)</span>
+                        </div>
+                        <div class="step-item step-3">
+                            <div class="step-number">3</div>
+                            <span>Reconstructed clean text</span>
+                        </div>
+                        <div class="step-item step-4">
+                            <div class="step-number">4</div>
+                            <span>Verified: ${meaningPreserved}% meaning preserved ✓</span>
+                        </div>
+                    </div>
+
+                    <!-- Score Display -->
+                    <div class="score-display">
+                        <div class="score-circle" style="--score-color: ${color}; --score-gradient: ${gradient}">
+                            <svg class="score-svg" viewBox="0 0 120 120">
+                                <circle class="score-bg" cx="60" cy="60" r="54" />
+                                <circle class="score-progress" cx="60" cy="60" r="54" 
+                                    style="--score: ${data.detection.overall_score}; stroke: ${color}" />
+                            </svg>
+                            <div class="score-value">
+                                <span class="score-number">${data.detection.overall_score}</span>
+                                <span class="score-percent">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4-Step Text Comparison -->
+                    <div class="auto-text-compare">
+                        <div class="text-step original-text">
+                            <h4>📝 Step 1: Your Original</h4>
+                            <p>${escapeHtml(data.original_clean)}</p>
+                        </div>
+                        <div class="text-step plag-text">
+                            <h4>⚠️ Step 2: Auto-Generated Plag (${plagRatio}%)</h4>
+                            <p>${escapeHtml(data.auto_suspected)}</p>
+                            <button class="btn-copy" onclick="copyToClipboard('${escapeForJs(data.auto_suspected)}', this)">Copy Suspected</button>
+                        </div>
+                        <div class="text-step reconstructed-text">
+                            <h4>✨ Step 3: System Reconstruction</h4>
+                            <p>${escapeHtml(data.reconstructed_text)}</p>
+                            <button class="btn-copy" onclick="copyToClipboard('${escapeForJs(data.reconstructed_text)}', this)">Copy Clean</button>
+                        </div>
+                        <div class="text-step verify-text">
+                            <h4>✅ Step 4: Similarity Check</h4>
+                            <div class="verify-stats">
+                                <span>Meaning Preserved: <strong>${meaningPreserved}%</strong></span>
+                                <span>Status: <strong>${data.similarity_check.status.toUpperCase()}</strong></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sentence Breakdown (Condensed) -->
+                    <div class="sentences-section">
+                        <h3>Sentence Analysis (${data.sentence_analysis.length} sentences)</h3>
+                        ${data.sentence_analysis.slice(0, 5).map((s, i) => `
+                            <div class="mini-sentence-row">
+                                <span class="sentence-number">#${i+1}</span>
+                                <span class="sentence-text">${escapeHtml(s.sentence.slice(0, 50))}...</span>
+                                <span class="sim-badge">${(s.similarity*100).toFixed(0)}%</span>
+                                <span class="plag-badge ${s.is_plagiarized ? 'plag-yes' : 'plag-no'}">
+                                    ${s.is_plagiarized ? '⚠️ Plag' : '✅ Clean'}
+                                </span>
+                            </div>
+                        `).join('')}
+                        ${data.sentence_analysis.length > 5 ? '<p class="more-sentences">... and more</p>' : ''}
+                    </div>
+                </div>
+            `;
+
+            // Animate
+            requestAnimationFrame(() => {
+                const circle = document.querySelector('.score-progress');
+                if (circle) {
+                    const circumference = 2 * Math.PI * 54;
+                    circle.style.strokeDasharray = circumference;
+                    circle.style.strokeDashoffset = circumference - (data.detection.overall_score / 100) * circumference;
+                }
+            });
         }
 
         function escapeForJs(text) {
