@@ -614,11 +614,16 @@ def analyze_pair(text1: str, text2: str) -> dict:
     confidence = None
 
     if model is not None and vectorizer is not None:
-        X = create_features_for_pair(text1, text2)
-        if X is not None:
-            prediction = int(model.predict(X)[0])
-            proba = model.predict_proba(X)[0]
-            confidence = float(max(proba))
+        try:
+            X = create_features_for_pair(text1, text2)
+            if X is not None:
+                prediction = int(model.predict(X)[0])
+                proba = model.predict_proba(X)[0]
+                confidence = float(max(proba))
+        except AttributeError:
+            # Fallback for sklearn version mismatch
+            prediction = 1 if compute_text_similarity(text1, text2) > 0.6 else 0
+            confidence = compute_text_similarity(text1, text2)
 
     # Rule-based metrics
     sequence_sim = compute_text_similarity(text1, text2)
