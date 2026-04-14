@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered plagiarism checker and rewriter. Detect plagiarism and get human-like rewrites that preserve meaning.">
+    <title>PlagiarismAI — Detect & Rewrite with AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="bg-animation">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+        <div class="bg-grid"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="header" id="main-header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <path d="M14 2L3 8v12l11 6 11-6V8L14 2z" stroke="url(#logoGrad)" stroke-width="2" fill="none"/>
+                        <path d="M14 8L8 11.5v7L14 22l6-3.5v-7L14 8z" fill="url(#logoGrad)" opacity="0.6"/>
+                        <circle cx="14" cy="14" r="3" fill="url(#logoGrad)"/>
+                        <defs>
+                            <linearGradient id="logoGrad" x1="3" y1="2" x2="25" y2="26">
+                                <stop offset="0%" stop-color="#6366f1"/>
+                                <stop offset="50%" stop-color="#a855f7"/>
+                                <stop offset="100%" stop-color="#ec4899"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <span class="logo-text">Plagiarism<span class="logo-accent">AI</span></span>
+            </div>
+            <div class="header-status">
+                {% if model_loaded %}
+                <div class="status-badge status-online">
+                    <span class="status-dot"></span>
+                    <span>ML Model Active</span>
+                </div>
+                {% else %}
+                <div class="status-badge status-fallback">
+                    <span class="status-dot"></span>
+                    <span>Rule-Based Mode</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Hero Section -->
+        <section class="hero" id="hero-section">
+            <h1 class="hero-title">
+                <span class="hero-line">Detect & Rewrite</span>
+                <span class="hero-line hero-gradient">Plagiarism with AI</span>
+            </h1>
+            <p class="hero-subtitle">
+                Detect plagiarism, see the flagged sentences, and get <strong>human-like rewrites</strong> that 
+                preserve the original meaning — powered by <strong>1,000,000+</strong> training samples.
+            </p>
+            {% if metadata %}
+            <div class="stats-row">
+                <div class="stat-chip">
+                    <span class="stat-value">{{ "%.1f"|format(metadata.accuracy * 100) }}%</span>
+                    <span class="stat-label">Accuracy</span>
+                </div>
+                <div class="stat-chip">
+                    <span class="stat-value">{{ "%.1f"|format(metadata.f1 * 100) }}%</span>
+                    <span class="stat-label">F1 Score</span>
+                </div>
+                <div class="stat-chip">
+                    <span class="stat-value">{{ "{:,}".format(metadata.total_dataset_rows) }}</span>
+                    <span class="stat-label">Training Samples</span>
+                </div>
+                <div class="stat-chip">
+                    <span class="stat-value">{{ "{:,}".format(metadata.feature_count) }}</span>
+                    <span class="stat-label">Features</span>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Mode Tabs -->
+        <section class="mode-section" id="mode-section">
+            <div class="mode-tabs">
+                <button class="mode-tab active" id="tab-compare" onclick="switchMode('compare')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="8" height="18" rx="2"/>
+                        <rect x="14" y="3" width="8" height="18" rx="2"/>
+                    </svg>
+                    Compare Two Texts
+                </button>
+                <button class="mode-tab" id="tab-corpus" onclick="switchMode('corpus')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                        <line x1="12" y1="6" x2="12" y2="14"/>
+                        <line x1="8" y1="10" x2="16" y2="10"/>
+                    </svg>
+                    Check Against Corpus
+                </button>
+            </div>
+        </section>
+
+        <!-- Compare Mode -->
+        <section class="input-section" id="compare-mode">
+            <div class="input-grid">
+                <div class="input-card">
+                    <div class="input-header">
+                        <span class="input-label">Original / Source Text</span>
+                        <span class="char-count" id="char-count-1">0 chars</span>
+                    </div>
+                    <textarea 
+                        id="text1" 
+                        class="text-input"
+                        placeholder="Paste the original source text here..."
+                        oninput="updateCharCount('text1', 'char-count-1')"
+                    ></textarea>
+                </div>
+                <div class="input-card">
+                    <div class="input-header">
+                        <span class="input-label">Suspected / Submitted Text</span>
+                        <span class="char-count" id="char-count-2">0 chars</span>
+                    </div>
+                    <textarea 
+                        id="text2" 
+                        class="text-input"
+                        placeholder="Paste the suspected plagiarized text here..."
+                        oninput="updateCharCount('text2', 'char-count-2')"
+                    ></textarea>
+                </div>
+            </div>
+            <div class="action-row">
+                <button class="btn-primary" id="btn-check" onclick="checkPlagiarism()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="M21 21l-4.35-4.35"/>
+                    </svg>
+                    Check & Rewrite
+                </button>
+                <button class="btn-secondary" onclick="clearInputs()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="1 4 1 10 7 10"/>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                    </svg>
+                    Clear
+                </button>
+                <button class="btn-secondary" onclick="loadExample()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                    Load Example
+                </button>
+            </div>
+        </section>
+
+        <!-- Corpus Mode -->
+        <section class="input-section hidden" id="corpus-mode">
+            <div class="input-grid">
+                <div class="input-card">
+                    <div class="input-header">
+                        <span class="input-label">Your Text (Student Submission)</span>
+                        <span class="char-count" id="char-count-input">0 chars</span>
+                    </div>
+                    <textarea 
+                        id="corpus-input" 
+                        class="text-input"
+                        placeholder="Paste the text to check for plagiarism..."
+                        oninput="updateCharCount('corpus-input', 'char-count-input')"
+                    ></textarea>
+                </div>
+                <div class="input-card">
+                    <div class="input-header">
+                        <span class="input-label">Source Corpus (Reference Text)</span>
+                        <span class="char-count" id="char-count-corpus">0 chars</span>
+                    </div>
+                    <textarea 
+                        id="corpus-source" 
+                        class="text-input"
+                        placeholder="Paste the reference/source text to compare against..."
+                        oninput="updateCharCount('corpus-source', 'char-count-corpus')"
+                    ></textarea>
+                </div>
+            </div>
+            <div class="action-row">
+                <button class="btn-primary" id="btn-corpus-check" onclick="checkCorpus()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                    </svg>
+                    Scan & Rewrite
+                </button>
+                <button class="btn-secondary" onclick="clearCorpus()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="1 4 1 10 7 10"/>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                    </svg>
+                    Clear
+                </button>
+                <button class="btn-secondary" onclick="loadCorpusExample()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                    Load Example
+                </button>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section hidden" id="results-section">
+            <div id="results-content"></div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Built with <span class="heart">♥</span> using Machine Learning &bull; Trained on 1M+ sentence pairs</p>
+    </footer>
+
+    <script>
+        // ─────────────────────────────────────────────
+        // State
+        // ─────────────────────────────────────────────
+        let currentMode = 'compare';
+
+        // ─────────────────────────────────────────────
+        // Mode Switching
+        // ─────────────────────────────────────────────
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('tab-compare').classList.toggle('active', mode === 'compare');
+            document.getElementById('tab-corpus').classList.toggle('active', mode === 'corpus');
+            document.getElementById('compare-mode').classList.toggle('hidden', mode !== 'compare');
+            document.getElementById('corpus-mode').classList.toggle('hidden', mode !== 'corpus');
+            document.getElementById('results-section').classList.add('hidden');
+        }
+
+        // ─────────────────────────────────────────────
+        // Utility
+        // ─────────────────────────────────────────────
+        function updateCharCount(textareaId, countId) {
+            const text = document.getElementById(textareaId).value;
+            const count = text.length;
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            document.getElementById(countId).textContent = `${count} chars · ${words} words`;
+        }
+
+        function clearInputs() {
+            document.getElementById('text1').value = '';
+            document.getElementById('text2').value = '';
+            document.getElementById('char-count-1').textContent = '0 chars';
+            document.getElementById('char-count-2').textContent = '0 chars';
+            document.getElementById('results-section').classList.add('hidden');
+        }
+
+        function clearCorpus() {
+            document.getElementById('corpus-input').value = '';
+            document.getElementById('corpus-source').value = '';
+            document.getElementById('char-count-input').textContent = '0 chars';
+            document.getElementById('char-count-corpus').textContent = '0 chars';
+            document.getElementById('results-section').classList.add('hidden');
+        }
+
+        function loadExample() {
+            document.getElementById('text1').value = "The scientist discovered a new species of butterfly in the Amazon rainforest. She documented the findings in her research paper and presented them at the annual biology conference.";
+            document.getElementById('text2').value = "The scientist discovered a new species of butterfly in the Amazon rainforest. She documented the findings in her research paper and presented them at the annual biology conference.";
+            updateCharCount('text1', 'char-count-1');
+            updateCharCount('text2', 'char-count-2');
+        }
+
+        function loadCorpusExample() {
+            document.getElementById('corpus-input').value = "The teacher explained the topic clearly. She submitted the report on time. He completed the project successfully. They discussed the new strategy in the meeting.";
+            document.getElementById('corpus-source').value = "The teacher explains the topic. She handed in the report on time. He finished the project with success. They talked about the new strategy at the meeting. The manager approved the budget for the quarter.";
+            updateCharCount('corpus-input', 'char-count-input');
+            updateCharCount('corpus-source', 'char-count-corpus');
+        }
+
+        function copyToClipboard(text, btnElement) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = btnElement.innerHTML;
+                btnElement.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied!`;
+                btnElement.classList.add('btn-copied');
+                setTimeout(() => {
+                    btnElement.innerHTML = originalText;
+                    btnElement.classList.remove('btn-copied');
+                }, 2000);
+            });
+        }
+
+        // ─────────────────────────────────────────────
+        // API Calls
+        // ─────────────────────────────────────────────
+        async function checkPlagiarism() {
+            const text1 = document.getElementById('text1').value.trim();
+            const text2 = document.getElementById('text2').value.trim();
+
+            if (!text1 || !text2) {
+                showError('Please enter text in both fields.');
+                return;
+            }
+
+            showLoading('Checking plagiarism and generating rewrites...');
+
+            try {
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text1, text2 }),
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    renderCompareResults(data);
+                } else {
+                    showError(data.error || 'An error occurred');
+                }
+            } catch (err) {
+                showError('Connection error. Is the server running?');
+            }
+        }
+
+        async function checkCorpus() {
+            const text = document.getElementById('corpus-input').value.trim();
+            const corpus = document.getElementById('corpus-source').value.trim();
+
+            if (!text || !corpus) {
+                showError('Please enter text in both fields.');
+                return;
+            }
+
+            showLoading('Scanning corpus and rewriting flagged sentences...');
+
+            try {
+                const response = await fetch('/api/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, corpus }),
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    renderCorpusResults(data);
+                } else {
+                    showError(data.error || 'An error occurred');
+                }
+            } catch (err) {
+                showError('Connection error. Is the server running?');
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        // Rendering
+        // ─────────────────────────────────────────────
+        function showLoading(message = 'Analyzing text similarity...') {
+            const section = document.getElementById('results-section');
+            section.classList.remove('hidden');
+            document.getElementById('results-content').innerHTML = `
+                <div class="loading-container">
+                    <div class="loading-spinner">
+                        <div class="spinner-ring"></div>
+                        <div class="spinner-ring ring-2"></div>
+                        <div class="spinner-ring ring-3"></div>
+                    </div>
+                    <p class="loading-text">${message}</p>
+                </div>
+            `;
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function showError(message) {
+            const section = document.getElementById('results-section');
+            section.classList.remove('hidden');
+            document.getElementById('results-content').innerHTML = `
+                <div class="error-card">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                    <span>${message}</span>
+                </div>
+            `;
+        }
+
+        function getSeverityColor(severity) {
+            switch (severity) {
+                case 'high': return '#ef4444';
+                case 'medium': return '#f59e0b';
+                case 'low': return '#22c55e';
+                default: return '#6366f1';
+            }
+        }
+
+        function getSeverityGradient(severity) {
+            switch (severity) {
+                case 'high': return 'linear-gradient(135deg, #ef4444, #dc2626)';
+                case 'medium': return 'linear-gradient(135deg, #f59e0b, #d97706)';
+                case 'low': return 'linear-gradient(135deg, #22c55e, #16a34a)';
+                default: return 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+            }
+        }
+
+        function renderCompareResults(data) {
+            const color = getSeverityColor(data.severity);
+            const gradient = getSeverityGradient(data.severity);
+
+            // Build sentence-level analysis cards
+            let sentenceCards = '';
+            if (data.sentence_analysis && data.sentence_analysis.length > 0) {
+                sentenceCards = data.sentence_analysis.map((s, i) => {
+                    const isPlag = s.is_plagiarized;
+                    const statusIcon = isPlag
+                        ? `<span class="plag-badge plag-yes">⚠ Plagiarized</span>`
+                        : `<span class="plag-badge plag-no">✓ Clean</span>`;
+                    
+                    const changesHtml = s.rewrite.changes_made && s.rewrite.changes_made.length > 0
+                        ? `<div class="changes-list">
+                            <span class="changes-label">Changes:</span>
+                            ${s.rewrite.changes_made.map(c => `<span class="change-chip">${escapeHtml(c)}</span>`).join('')}
+                           </div>`
+                        : '';
+                    
+                    return `
+                        <div class="rewrite-card fade-in ${isPlag ? 'rewrite-card-flagged' : 'rewrite-card-clean'}" style="animation-delay: ${i * 0.1}s">
+                            <div class="rewrite-card-header">
+                                <span class="sentence-number">#${i + 1}</span>
+                                ${statusIcon}
+                                <span class="sim-badge">Similarity: ${(s.similarity * 100).toFixed(0)}%</span>
+                            </div>
+                            <div class="rewrite-card-body">
+                                <div class="rewrite-row">
+                                    <div class="rewrite-col rewrite-col-plag">
+                                        <div class="rewrite-col-header">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                                            <span>Plagiarized Sentence</span>
+                                        </div>
+                                        <p class="rewrite-text text-plag">${escapeHtml(s.rewrite.plagiarized)}</p>
+                                    </div>
+                                    ${isPlag ? `
+                                    <div class="rewrite-arrow">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                                    </div>
+                                    <div class="rewrite-col rewrite-col-clean">
+                                        <div class="rewrite-col-header">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                            <span>Human-Like Rewrite</span>
+                                        </div>
+                                        <p class="rewrite-text text-clean">${escapeHtml(s.rewrite.rewritten)}</p>
+                                        ${changesHtml}
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            document.getElementById('results-content').innerHTML = `
+                <div class="results-card fade-in">
+                    <!-- Score + Verdict -->
+                    <div class="score-display">
+                        <div class="score-circle" style="--score-color: ${color}; --score-gradient: ${gradient}">
+                            <svg class="score-svg" viewBox="0 0 120 120">
+                                <circle class="score-bg" cx="60" cy="60" r="54" />
+                                <circle class="score-progress" cx="60" cy="60" r="54" 
+                                    style="--score: ${data.overall_score}; stroke: ${color}" />
+                            </svg>
+                            <div class="score-value">
+                                <span class="score-number">${data.overall_score}</span>
+                                <span class="score-percent">%</span>
+                            </div>
+                        </div>
+                        <div class="verdict-text">
+                            <span class="verdict-badge" style="background: ${gradient}">${data.verdict}</span>
+                            <span class="severity-label severity-${data.severity}">${data.severity.toUpperCase()} SIMILARITY</span>
+                            <span class="plag-count-text">${data.plagiarized_count} of ${data.total_sentences} sentences flagged</span>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Row -->
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-icon" style="background: rgba(99, 102, 241, 0.15); color: #6366f1">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value">${(data.metrics.sequence_similarity * 100).toFixed(1)}%</span>
+                                <span class="metric-label">Sequence Similarity</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon" style="background: rgba(168, 85, 247, 0.15); color: #a855f7">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value">${(data.metrics.word_overlap * 100).toFixed(1)}%</span>
+                                <span class="metric-label">Word Overlap</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon" style="background: rgba(236, 72, 153, 0.15); color: #ec4899">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10l7-4"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value">${data.metrics.ml_confidence !== null ? (data.metrics.ml_confidence * 100).toFixed(1) + '%' : 'N/A'}</span>
+                                <span class="metric-label">ML Confidence</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value">${data.plagiarized_count}</span>
+                                <span class="metric-label">Sentences Flagged</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Full Text Comparison: Plagiarized vs Rewritten -->
+                    ${data.plagiarized_count > 0 ? `
+                    <div class="full-rewrite-section">
+                        <h3 class="section-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                            </svg>
+                            Rewritten Text (Plagiarism Removed)
+                        </h3>
+                        <div class="full-text-grid">
+                            <div class="full-text-card full-text-plag">
+                                <div class="full-text-header">
+                                    <span class="full-text-label">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                        Plagiarized Text
+                                    </span>
+                                </div>
+                                <p class="full-text-content">${escapeHtml(data.plagiarized_text)}</p>
+                            </div>
+                            <div class="full-text-card full-text-clean">
+                                <div class="full-text-header">
+                                    <span class="full-text-label">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                        Clean Rewrite (Same Meaning)
+                                    </span>
+                                    <button class="btn-copy" onclick="copyToClipboard(\`${escapeForJs(data.rewritten_text)}\`, this)">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        Copy
+                                    </button>
+                                </div>
+                                <p class="full-text-content">${escapeHtml(data.rewritten_text)}</p>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Sentence-by-sentence breakdown -->
+                    <div class="sentences-section">
+                        <h3 class="section-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                                <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                                <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                            </svg>
+                            Sentence-by-Sentence Breakdown
+                        </h3>
+                        ${sentenceCards}
+                    </div>
+                </div>
+            `;
+
+            // Animate score circle
+            requestAnimationFrame(() => {
+                const circle = document.querySelector('.score-progress');
+                if (circle) {
+                    const circumference = 2 * Math.PI * 54;
+                    circle.style.strokeDasharray = circumference;
+                    circle.style.strokeDashoffset = circumference - (data.overall_score / 100) * circumference;
+                }
+            });
+        }
+
+        function renderCorpusResults(data) {
+            const color = getSeverityColor(data.overall_severity);
+            const gradient = getSeverityGradient(data.overall_severity);
+
+            const sentenceCards = data.sentence_results.map((r, i) => {
+                const isPlag = r.is_plagiarized;
+                const sentColor = getSeverityColor(
+                    r.match_score >= 80 ? 'high' :
+                    r.match_score >= 50 ? 'medium' :
+                    r.match_score >= 30 ? 'low' : 'none'
+                );
+                const statusIcon = isPlag
+                    ? `<span class="plag-badge plag-yes">⚠ Plagiarized</span>`
+                    : `<span class="plag-badge plag-no">✓ Clean</span>`;
+                
+                const changesHtml = r.rewrite && r.rewrite.changes_made && r.rewrite.changes_made.length > 0
+                    ? `<div class="changes-list">
+                        <span class="changes-label">Changes:</span>
+                        ${r.rewrite.changes_made.map(c => `<span class="change-chip">${escapeHtml(c)}</span>`).join('')}
+                       </div>`
+                    : '';
+
+                return `
+                    <div class="rewrite-card fade-in ${isPlag ? 'rewrite-card-flagged' : 'rewrite-card-clean'}" style="animation-delay: ${i * 0.08}s">
+                        <div class="rewrite-card-header">
+                            <span class="sentence-number">#${i + 1}</span>
+                            ${statusIcon}
+                            <div class="sentence-score-bar">
+                                <div class="score-bar-fill" style="width: ${r.match_score}%; background: ${sentColor}"></div>
+                            </div>
+                            <span class="sentence-score" style="color: ${sentColor}">${r.match_score}%</span>
+                        </div>
+                        <div class="rewrite-card-body">
+                            <div class="rewrite-row">
+                                <div class="rewrite-col rewrite-col-plag">
+                                    <div class="rewrite-col-header">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                                        <span>Original Input</span>
+                                    </div>
+                                    <p class="rewrite-text ${isPlag ? 'text-plag' : ''}">${escapeHtml(r.input_sentence)}</p>
+                                    ${r.best_match && isPlag ? `
+                                        <div class="source-match">
+                                            <span class="source-match-label">Source match:</span>
+                                            <span class="source-match-text">${escapeHtml(r.best_match)}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                ${isPlag ? `
+                                <div class="rewrite-arrow">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                                </div>
+                                <div class="rewrite-col rewrite-col-clean">
+                                    <div class="rewrite-col-header">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        <span>Human-Like Rewrite</span>
+                                    </div>
+                                    <p class="rewrite-text text-clean">${escapeHtml(r.rewrite.rewritten)}</p>
+                                    ${changesHtml}
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('results-content').innerHTML = `
+                <div class="results-card fade-in">
+                    <!-- Overview -->
+                    <div class="corpus-overview">
+                        <div class="score-display">
+                            <div class="score-circle" style="--score-color: ${color}; --score-gradient: ${gradient}">
+                                <svg class="score-svg" viewBox="0 0 120 120">
+                                    <circle class="score-bg" cx="60" cy="60" r="54" />
+                                    <circle class="score-progress" cx="60" cy="60" r="54" 
+                                        style="--score: ${data.overall_score}; stroke: ${color}" />
+                                </svg>
+                                <div class="score-value">
+                                    <span class="score-number">${data.overall_score}</span>
+                                    <span class="score-percent">%</span>
+                                </div>
+                            </div>
+                            <div class="verdict-text">
+                                <span class="verdict-badge" style="background: ${gradient}">${data.overall_verdict}</span>
+                            </div>
+                        </div>
+                        <div class="corpus-stats">
+                            <div class="corpus-stat">
+                                <span class="corpus-stat-value">${data.total_sentences}</span>
+                                <span class="corpus-stat-label">Total Sentences</span>
+                            </div>
+                            <div class="corpus-stat">
+                                <span class="corpus-stat-value" style="color: #ef4444">${data.flagged_sentences}</span>
+                                <span class="corpus-stat-label">Plagiarized</span>
+                            </div>
+                            <div class="corpus-stat">
+                                <span class="corpus-stat-value" style="color: #22c55e">${data.total_sentences - data.flagged_sentences}</span>
+                                <span class="corpus-stat-label">Clean</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Full Rewritten Text -->
+                    ${data.flagged_sentences > 0 ? `
+                    <div class="full-rewrite-section">
+                        <h3 class="section-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                            </svg>
+                            Complete Rewritten Text (Plagiarism Removed)
+                        </h3>
+                        <div class="full-text-grid">
+                            <div class="full-text-card full-text-plag">
+                                <div class="full-text-header">
+                                    <span class="full-text-label">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                        Original (With Plagiarism)
+                                    </span>
+                                </div>
+                                <p class="full-text-content">${escapeHtml(data.original_text)}</p>
+                            </div>
+                            <div class="full-text-card full-text-clean">
+                                <div class="full-text-header">
+                                    <span class="full-text-label">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                        Rewritten (Same Meaning, No Plagiarism)
+                                    </span>
+                                    <button class="btn-copy" onclick="copyToClipboard(\`${escapeForJs(data.rewritten_text)}\`, this)">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                        Copy
+                                    </button>
+                                </div>
+                                <p class="full-text-content">${escapeHtml(data.rewritten_text)}</p>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Sentence-by-Sentence -->
+                    <div class="sentences-section">
+                        <h3 class="section-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                                <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                                <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                            </svg>
+                            Sentence-by-Sentence Breakdown
+                        </h3>
+                        ${sentenceCards}
+                    </div>
+                </div>
+            `;
+
+            // Animate score circle
+            requestAnimationFrame(() => {
+                const circle = document.querySelector('.score-progress');
+                if (circle) {
+                    const circumference = 2 * Math.PI * 54;
+                    circle.style.strokeDasharray = circumference;
+                    circle.style.strokeDashoffset = circumference - (data.overall_score / 100) * circumference;
+                }
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeForJs(text) {
+            return text.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+        }
+    </script>
+</body>
+</html>
