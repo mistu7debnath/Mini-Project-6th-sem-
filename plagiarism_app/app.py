@@ -30,6 +30,10 @@ import joblib
 from flask import Flask, render_template, request, jsonify
 from scipy.sparse import hstack, csr_matrix
 from difflib import SequenceMatcher
+import urllib.request
+import json
+import ssl
+from concurrent.futures import ThreadPoolExecutor
 
 # Fix Windows console encoding
 if sys.platform == "win32":
@@ -247,17 +251,66 @@ HUMAN_TRANSITIONS = [
 ]
 
 
+# ─────────────────────────────────────────────────────────
+# DATAMUSE API INTEGRATION (Unlimited Vocabulary)
+# ─────────────────────────────────────────────────────────
+WORD_CACHE = {}
+
+def prefetch_synonyms(text: str):
+    """Fetch synonyms for long words in parallel to avoid UI lag."""
+    words = [w.lower().strip(".,!?;:'\"-()") for w in text.split()]
+    # Filter words > 3 chars and not in cache
+    target_words = list(set([w for w in words if len(w) > 3 and w not in WORD_CACHE]))
+    
+    if not target_words:
+        return
+        
+    def fetch(word):
+        try:
+            url = f"https://api.datamuse.com/words?ml={word}&max=5"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with urllib.request.urlopen(req, context=ctx, timeout=2.0) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                # prioritize actual synonyms
+                syns = [i['word'] for i in data if 'syn' in i.get('tags', [])]
+                if not syns and data:
+                    # fallback to strongly related words
+                    syns = [i['word'] for i in data[:2]]
+                WORD_CACHE[word] = syns
+        except:
+            WORD_CACHE[word] = []
+            
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        list(executor.map(fetch, target_words))
+
+
+def get_synonyms_for_word(word: str) -> list[str]:
+    """Get synonyms from static map or API cache."""
+    clean = word.lower().strip(".,!?;:'\"-()")
+    
+    # 1. Static map
+    if clean in SYNONYM_MAP:
+        return SYNONYM_MAP[clean]
+        
+    # 2. API cache
+    if clean in WORD_CACHE and WORD_CACHE[clean]:
+        return WORD_CACHE[clean]
+        
+    return []
+
+
 def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
     """
     Rewrite a plagiarized sentence into a human-like original version.
     
     Strategy:
-      1. Replace words with synonyms (multiple passes)
-      2. Restructure the sentence (reorder clauses)
-      3. Change voice (active <-> passive) if possible
-      4. Ensure the meaning stays the same
-    
-    Returns a dict with the original plagiarized text and the rewritten clean version.
+      1. Rapidly fetch synonyms in parallel for the whole text
+      2. Iteratively replace words, restructure, and change voice
+      3. Monitor similarity to source and keep looping max 5 times until similarity < 0.4
+      4. Add human phrasing if still failing to drop below threshold
     """
     if not sentence or not sentence.strip():
         return {
@@ -268,82 +321,93 @@ def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
         }
 
     original = sentence.strip()
-    rewritten = original
+    
+    # Prefetch vocabulary to handle the operation completely without blocking
+    prefetch_synonyms(original)
+
+    best_rewritten = original
+    best_sim = 1.0
     changes = []
 
-    # ─── Step 1: Synonym Replacement (aggressive — replace many words) ───
-    words = rewritten.split()
-    new_words = []
-    for word in words:
-        # Strip punctuation for lookup
-        clean = word.lower().rstrip(".,!?;:'\"")
-        trail = word[len(word.rstrip(".,!?;:'\"")):]
+    # Iterative aggressive rewrite to ensure plagiarism is removed
+    for attempt in range(5):
+        words = best_rewritten.split()
+        new_words = []
+        for word in words:
+            # Strip punctuation for lookup
+            clean = word.lower().rstrip(".,!?;:'\"")
+            trail = word[len(word.rstrip(".,!?;:'\"")):]
+            
+            synonyms = get_synonyms_for_word(clean)
+            if synonyms:
+                # Pick a synonym that's completely different from the source
+                if source_sentence:
+                    source_lower = source_sentence.lower()
+                    safe_synonyms = [s for s in synonyms if s.lower() not in source_lower]
+                    chosen = random.choice(safe_synonyms) if safe_synonyms else random.choice(synonyms)
+                else:
+                    chosen = random.choice(synonyms)
+                
+                # Preserve capitalization
+                if word and word[0].isupper():
+                    chosen = chosen[0].upper() + chosen[1:]
+                
+                new_words.append(chosen + trail)
+                if clean != chosen.lower() and f"'{clean}' → '{chosen}'" not in changes:
+                    changes.append(f"'{clean}' → '{chosen}'")
+            else:
+                new_words.append(word)
         
-        if clean in SYNONYM_MAP:
-            synonyms = SYNONYM_MAP[clean]
-            # Pick a synonym that's different from the source too
-            chosen = random.choice(synonyms)
+        candidate = " ".join(new_words)
+
+        # Restructure and change voice
+        candidate = restructure_sentence(candidate)
+        candidate = try_voice_change(candidate)
+
+        if source_sentence:
+            sim = compute_text_similarity(candidate, source_sentence)
+            if sim < best_sim:
+                best_sim = sim
+                best_rewritten = candidate
             
-            # If we have a source sentence, avoid picking words that are in it
-            if source_sentence:
-                source_lower = source_sentence.lower()
-                safe_synonyms = [s for s in synonyms if s.lower() not in source_lower]
-                if safe_synonyms:
-                    chosen = random.choice(safe_synonyms)
-            
-            # Preserve capitalization
-            if word[0].isupper():
-                chosen = chosen[0].upper() + chosen[1:]
-            
-            new_words.append(chosen + trail)
-            changes.append(f"'{clean}' → '{chosen}'")
+            # If similarity achieves perfectly safe levels, exit early
+            if sim <= 0.45:
+                break
         else:
-            new_words.append(word)
-    
-    rewritten = " ".join(new_words)
+            best_rewritten = candidate
+            break
+            
+    rewritten = best_rewritten
 
-    # ─── Step 2: Sentence restructuring ───
-    restructured = restructure_sentence(rewritten)
-    if restructured != rewritten:
-        changes.append("sentence restructured")
-        rewritten = restructured
-
-    # ─── Step 3: Voice change (active ↔ passive) ───
-    voice_changed = try_voice_change(rewritten)
-    if voice_changed != rewritten:
-        changes.append("voice changed")
-        rewritten = voice_changed
-
-    # ─── Step 4: If still too similar to source, apply more changes ───
+    # ─── Step 4: If STILL too similar to source, strictly force it below bounds ───
     if source_sentence:
-        sim = compute_text_similarity(rewritten, source_sentence)
-        if sim > 0.7:
-            # Add transitional phrasing
+        final_sim = compute_text_similarity(rewritten, source_sentence)
+        if final_sim > 0.5:
+            # Drastically append phrasing
             rewritten = add_human_phrasing(rewritten)
-            changes.append("human phrasing added")
+            changes.append("applied structural expansion to bypass detection")
 
-    # Compute final similarity to the plagiarized input (should be high — same meaning)
+    # Compute final similarity to the plagiarized input
     meaning_similarity = compute_text_similarity(original, rewritten)
     
-    # Compute similarity to source (should be low — shows plagiarism is reduced)
-    source_similarity = 0.0
-    if source_sentence:
-        source_similarity = compute_text_similarity(rewritten, source_sentence)
+    # Compute similarity to source (should be low — showing plagiarism is removed)
+    source_sim_before = compute_text_similarity(original, source_sentence) if source_sentence else 0
+    source_sim_after = compute_text_similarity(rewritten, source_sentence) if source_sentence else 0
 
     return {
         "plagiarized": original,
         "rewritten": rewritten,
         "changes_made": changes,
         "meaning_preserved": meaning_similarity,
-        "source_similarity_before": compute_text_similarity(original, source_sentence) if source_sentence else 0,
-        "source_similarity_after": source_similarity,
+        "source_similarity_before": source_sim_before,
+        "source_similarity_after": source_sim_after,
     }
 
 
 def restructure_sentence(sentence: str) -> str:
     """Restructure a sentence by moving clauses around."""
     words = sentence.split()
-    if len(words) < 5:
+    if len(words) < 3:
         return sentence
 
     # Remove trailing punctuation
@@ -398,7 +462,7 @@ def restructure_sentence(sentence: str) -> str:
 def try_voice_change(sentence: str) -> str:
     """Try to change active voice to passive or vice versa."""
     words = sentence.split()
-    if len(words) < 4:
+    if len(words) < 3:
         return sentence
     
     # Remove trailing punctuation
@@ -464,7 +528,7 @@ def try_voice_change(sentence: str) -> str:
 def add_human_phrasing(sentence: str) -> str:
     """Add natural human transitions and phrasing to make text sound more original."""
     # Don't add if sentence is very short
-    if len(sentence.split()) < 4:
+    if len(sentence.split()) < 2:
         return sentence
     
     strategies = [
@@ -764,9 +828,18 @@ def check_plagiarism():
     # Build the plagiarized text (the input that was flagged)
     plagiarized_full_text = text2
     
+    # Compute similarity between the plagiarized text and the final human-like rewrite
+    rewrite_similarity = compute_text_similarity(plagiarized_full_text, rewritten_full_text)
+    
+    # Recheck the rewritten text against the original source
+    recheck_analysis = analyze_pair(text1, rewritten_full_text)
+    recheck_score = recheck_analysis["overall_score"]
+    
     result["sentence_analysis"] = sentence_analysis
     result["plagiarized_text"] = plagiarized_full_text
     result["rewritten_text"] = rewritten_full_text
+    result["rewrite_similarity"] = rewrite_similarity
+    result["recheck_score"] = recheck_score
     result["total_sentences"] = len(sentences_text2)
     result["plagiarized_count"] = sum(1 for s in sentence_analysis if s["is_plagiarized"])
     
@@ -865,6 +938,21 @@ def compare_corpus():
     # Combine rewritten text
     rewritten_full_text = " ".join(rewritten_sentences)
 
+    # Compute similarity between original and rewritten text
+    rewrite_similarity = compute_text_similarity(input_text, rewritten_full_text)
+
+    # Recheck the rewritten text against the corpus
+    recheck_score_total = 0
+    rw_list = split_into_sentences(rewritten_full_text)
+    for rw_sent in rw_list:
+        best_rw_score = 0
+        for corpus_sent in corpus_sentences:
+            analysis = analyze_pair(rw_sent, corpus_sent)
+            if analysis["overall_score"] > best_rw_score:
+                best_rw_score = analysis["overall_score"]
+        recheck_score_total += best_rw_score
+    recheck_avg_score = round(recheck_score_total / len(rw_list), 1) if rw_list else 0
+
     return jsonify({
         "overall_score": avg_score,
         "overall_severity": overall_severity,
@@ -874,6 +962,8 @@ def compare_corpus():
         "sentence_results": results,
         "original_text": input_text,
         "rewritten_text": rewritten_full_text,
+        "rewrite_similarity": rewrite_similarity,
+        "recheck_score": recheck_avg_score,
     })
 
 
