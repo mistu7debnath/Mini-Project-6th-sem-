@@ -49,6 +49,8 @@ VECTORIZER_PATH = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
 METADATA_PATH = os.path.join(MODEL_DIR, "model_metadata.pkl")
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 # ─────────────────────────────────────────────────────────
 # Load Model
