@@ -9,7 +9,7 @@ Features:
   3. Rewrite plagiarized sentences into human-like original text
   4. Keep the meaning identical in both versions
 
-Endpoints:
+Endpoints: 
     GET  /              → Main page (HTML UI)
     POST /api/check     → Check plagiarism + rewrite plagiarized text
     POST /api/compare   → Corpus scan + rewrite flagged sentences

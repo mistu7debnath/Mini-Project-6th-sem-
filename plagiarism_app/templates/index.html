@@ -1,19 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="AI-powered plagiarism checker and rewriter. Detect plagiarism and get human-like rewrites that preserve meaning.">
+    <meta name="description"
+        content="AI-powered plagiarism checker and rewriter. Detect plagiarism and get human-like rewrites that preserve meaning.">
     <title>PlagiarismAI — Detect & Rewrite with AI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
     <!-- Dashboard Wrapper -->
     <div class="app-wrapper">
-        
+
         <!-- Sidebar History -->
         <aside class="history-sidebar">
             <div class="sidebar-header">
@@ -28,339 +33,335 @@
         <div class="workspace">
 
 
-    <!-- Header -->
-    <header class="header" id="main-header">
-        <div class="header-inner">
-            <div class="logo">
-                <div class="logo-icon">
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                        <path d="M14 2L3 8v12l11 6 11-6V8L14 2z" stroke="url(#logoGrad)" stroke-width="2" fill="none"/>
-                        <path d="M14 8L8 11.5v7L14 22l6-3.5v-7L14 8z" fill="url(#logoGrad)" opacity="0.6"/>
-                        <circle cx="14" cy="14" r="3" fill="url(#logoGrad)"/>
-                        <defs>
-                            <linearGradient id="logoGrad" x1="3" y1="2" x2="25" y2="26">
-                                <stop offset="0%" stop-color="#6366f1"/>
-                                <stop offset="50%" stop-color="#a855f7"/>
-                                <stop offset="100%" stop-color="#ec4899"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                </div>
-                <span class="logo-text">Plagiarism<span class="logo-accent">AI</span></span>
-            </div>
-            <div class="header-status">
-                {% if model_loaded %}
-                <div class="status-badge status-online">
-                    <span class="status-dot"></span>
-                    <span>ML Model Active</span>
-                </div>
-                {% else %}
-                <div class="status-badge status-fallback">
-                    <span class="status-dot"></span>
-                    <span>Rule-Based Mode</span>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Hero Section -->
-        <section class="hero" id="hero-section">
-            <h1 class="hero-title">
-                <span class="hero-line">Detect & Rewrite</span>
-                <span class="hero-line hero-gradient">Plagiarism with AI</span>
-            </h1>
-            <p class="hero-subtitle">
-                Detect plagiarism, see the flagged sentences, and get <strong>human-like rewrites</strong> that 
-                preserve the original meaning — powered by <strong>1,000,000+</strong> training samples.
-            </p>
-            {% if metadata %}
-            <div class="stats-row">
-                <div class="stat-chip">
-                    <span class="stat-value">{{ "%.1f"|format(metadata.accuracy * 100) }}%</span>
-                    <span class="stat-label">Accuracy</span>
-                </div>
-                <div class="stat-chip">
-                    <span class="stat-value">{{ "%.1f"|format(metadata.f1 * 100) }}%</span>
-                    <span class="stat-label">F1 Score</span>
-                </div>
-                <div class="stat-chip">
-                    <span class="stat-value">{{ "{:,}".format(metadata.total_dataset_rows) }}</span>
-                    <span class="stat-label">Training Samples</span>
-                </div>
-                <div class="stat-chip">
-                    <span class="stat-value">{{ "{:,}".format(metadata.feature_count) }}</span>
-                    <span class="stat-label">Features</span>
-                </div>
-            </div>
-            {% endif %}
-        </section>
-
-        <!-- Mode Tabs -->
-<section class="mode-section" id="mode-section">
-            <div class="mode-tabs">
-                <button class="mode-tab active" id="tab-auto" onclick="switchMode('auto')">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                        <polyline points="22 4 12 14.01 9 11.01"/>
-                    </svg>
-                    🚀 Auto Mode (NEW)
-                </button>
-                <button class="mode-tab" id="tab-compare" onclick="switchMode('compare')">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="2" y="3" width="8" height="18" rx="2"/>
-                        <rect x="14" y="3" width="8" height="18" rx="2"/>
-                    </svg>
-                    Manual Compare
-                </button>
-                <button class="mode-tab" id="tab-corpus" onclick="switchMode('corpus')">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                        <line x1="12" y1="6" x2="12" y2="14"/>
-                        <line x1="8" y1="10" x2="16" y2="10"/>
-                    </svg>
-                    Bulk Scan
-                </button>
-                <button class="mode-tab" id="tab-verify" onclick="switchMode('verify')">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                        <polyline points="22 4 12 14.01 9 11.01"/>
-                    </svg>
-                    Verify Rewrite
-                </button>
-            </div>
-        </section>
-
-        <!-- AUTO Mode (NEW - Step 3) -->
-        <section class="input-section" id="auto-mode">
-            <div class="input-card" style="max-width: 800px; margin: 0 auto;">
-                <div class="input-header">
-                    <span class="input-label">✨ Paste Your ORIGINAL Clean Text Here</span>
-                    <span class="char-count" id="auto-char-count">0 chars</span>
-                </div>
-                <textarea 
-                    id="auto-clean-text" 
-                    class="text-input"
-                    placeholder="Enter your original text (1 textarea only)...&#10;System will AUTO:&#10;1️⃣ Generate plagiarized version&#10;2️⃣ Detect plagiarism %&#10;3️⃣ Reconstruct clean text&#10;4️⃣ Verify similarity"
-                    oninput="updateCharCount('auto-clean-text', 'auto-char-count')"
-                ></textarea>
-            </div>
-            <div class="action-row" style="justify-content: center; margin-top: 24px;">
-                <button class="btn-primary" id="btn-auto-run" onclick="runAutoPlagiarism()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                        <polyline points="22,4 12,14.01 9,11.01"/>
-                    </svg>
-                    🚀 Run Full Auto Workflow (4 Steps)
-                </button>
-                <button class="btn-secondary" onclick="clearAuto()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="1 4 1 10 7 10"/>
-                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-                    </svg>
-                    Clear
-                </button>
-                <button class="btn-secondary" onclick="loadAutoExample()">
-                    Load Example
-                </button>
-            </div>
-        </section>
-
-        <!-- Compare Mode (renamed to manual) -->
-        <section class="input-section hidden" id="compare-mode">
-            <div class="input-grid">
-                <div class="input-card">
-                    <div class="input-header">
-                        <span class="input-label">Original / Source Text</span>
-                        <span class="char-count" id="char-count-1">0 chars</span>
+            <!-- Header -->
+            <header class="header" id="main-header">
+                <div class="header-inner">
+                    <div class="logo">
+                        <div class="logo-icon">
+                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                                <path d="M14 2L3 8v12l11 6 11-6V8L14 2z" stroke="url(#logoGrad)" stroke-width="2"
+                                    fill="none" />
+                                <path d="M14 8L8 11.5v7L14 22l6-3.5v-7L14 8z" fill="url(#logoGrad)" opacity="0.6" />
+                                <circle cx="14" cy="14" r="3" fill="url(#logoGrad)" />
+                                <defs>
+                                    <linearGradient id="logoGrad" x1="3" y1="2" x2="25" y2="26">
+                                        <stop offset="0%" stop-color="#6366f1" />
+                                        <stop offset="50%" stop-color="#a855f7" />
+                                        <stop offset="100%" stop-color="#ec4899" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                        </div>
+                        <span class="logo-text">Plagiarism<span class="logo-accent">AI</span></span>
                     </div>
-                    <textarea 
-                        id="text1" 
-                        class="text-input"
-                        placeholder="Paste the original source text here..."
-                        oninput="updateCharCount('text1', 'char-count-1')"
-                    ></textarea>
-                </div>
-                <div class="input-card">
-                    <div class="input-header">
-                        <span class="input-label">Suspected / Submitted Text</span>
-                        <span class="char-count" id="char-count-2">0 chars</span>
+                    <div class="header-status">
+                        {% if model_loaded %}
+                        <div class="status-badge status-online">
+                            <span class="status-dot"></span>
+                            <span>ML Model Active</span>
+                        </div>
+                        {% else %}
+                        <div class="status-badge status-fallback">
+                            <span class="status-dot"></span>
+                            <span>Rule-Based Mode</span>
+                        </div>
+                        {% endif %}
                     </div>
-                    <textarea 
-                        id="text2" 
-                        class="text-input"
-                        placeholder="Paste the suspected plagiarized text here..."
-                        oninput="updateCharCount('text2', 'char-count-2')"
-                    ></textarea>
                 </div>
-            </div>
-            <div class="action-row">
-                <button class="btn-primary" id="btn-check" onclick="checkPlagiarism()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <path d="M21 21l-4.35-4.35"/>
-                    </svg>
-                    Check & Rewrite
-                </button>
-                <button class="btn-secondary" onclick="clearInputs()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="1 4 1 10 7 10"/>
-                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-                    </svg>
-                    Clear
-                </button>
-                <button class="btn-secondary" onclick="loadExample()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                    </svg>
-                    Load Example
-                </button>
-            </div>
-        </section>
+            </header>
 
-        <!-- Corpus Mode -->
-        <section class="input-section hidden" id="corpus-mode">
-            <div class="input-grid">
-                <div class="input-card">
-                    <div class="input-header">
-                        <span class="input-label">Your Text (Student Submission)</span>
-                        <span class="char-count" id="char-count-input">0 chars</span>
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Hero Section -->
+                <section class="hero" id="hero-section">
+                    <h1 class="hero-title">
+                        <span class="hero-line">Detect & Rewrite</span>
+                        <span class="hero-line hero-gradient">Plagiarism with AI</span>
+                    </h1>
+                    <p class="hero-subtitle">
+                        Detect plagiarism, see the flagged sentences, and get <strong>human-like rewrites</strong> that
+                        preserve the original meaning — powered by <strong>1,000,000+</strong> training samples.
+                    </p>
+                    {% if metadata %}
+                    <div class="stats-row">
+                        <div class="stat-chip">
+                            <span class="stat-value">{{ "%.1f"|format(metadata.accuracy * 100) }}%</span>
+                            <span class="stat-label">Accuracy</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-value">{{ "%.1f"|format(metadata.f1 * 100) }}%</span>
+                            <span class="stat-label">F1 Score</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-value">{{ "{:,}".format(metadata.total_dataset_rows) }}</span>
+                            <span class="stat-label">Training Samples</span>
+                        </div>
+                        <div class="stat-chip">
+                            <span class="stat-value">{{ "{:,}".format(metadata.feature_count) }}</span>
+                            <span class="stat-label">Features</span>
+                        </div>
                     </div>
-                    <textarea 
-                        id="corpus-input" 
-                        class="text-input"
-                        placeholder="Paste the text to check for plagiarism..."
-                        oninput="updateCharCount('corpus-input', 'char-count-input')"
-                    ></textarea>
-                </div>
-                <div class="input-card">
-                    <div class="input-header">
-                        <span class="input-label">Source Corpus (Reference Text)</span>
-                        <span class="char-count" id="char-count-corpus">0 chars</span>
-                    </div>
-                    <textarea 
-                        id="corpus-source" 
-                        class="text-input"
-                        placeholder="Paste the reference/source text to compare against..."
-                        oninput="updateCharCount('corpus-source', 'char-count-corpus')"
-                    ></textarea>
-                </div>
-            </div>
-        </section>
+                    {% endif %}
+                </section>
 
-        <!-- Iterative Rewrite Mode -->
-        <!-- Single Sentence Iterative Mode -->
-            <section class="input-section hidden" id="rewrite-mode">
-                <div class="input-card" style="max-width: 800px; margin: 0 auto;">
-                    <div class="input-header">
-                        <span class="input-label">📝 Paste Suspected Plag Sentence</span>
-                        <span class="char-count" id="single-plag-count">0 chars</span>
+                <!-- Mode Tabs -->
+                <section class="mode-section" id="mode-section">
+                    <div class="mode-tabs">
+                        <button class="mode-tab active" id="tab-auto" onclick="switchMode('auto')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                <polyline points="22 4 12 14.01 9 11.01" />
+                            </svg>
+                            🚀 Auto Mode (NEW)
+                        </button>
+                        <button class="mode-tab" id="tab-compare" onclick="switchMode('compare')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <rect x="2" y="3" width="8" height="18" rx="2" />
+                                <rect x="14" y="3" width="8" height="18" rx="2" />
+                            </svg>
+                            Manual Compare
+                        </button>
+                        <button class="mode-tab" id="tab-corpus" onclick="switchMode('corpus')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                                <line x1="12" y1="6" x2="12" y2="14" />
+                                <line x1="8" y1="10" x2="16" y2="10" />
+                            </svg>
+                            Bulk Scan
+                        </button>
+                        <button class="mode-tab" id="tab-verify" onclick="switchMode('verify')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                <polyline points="22 4 12 14.01 9 11.01" />
+                            </svg>
+                            Verify Rewrite
+                        </button>
                     </div>
-                    <textarea 
-                        id="single-plag-input" 
-                        class="text-input"
-                        placeholder="Enter one sentence you want to reconstruct..."
-                        oninput="updateCharCount('single-plag-input', 'single-plag-count')"
-                    ></textarea>
-                </div>
-                <div class="action-row" style="justify-content: center; margin-top: 24px;">
-                    <button class="btn-primary" id="btn-generate-verify" onclick="generateAndVerifySingle()">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                            <polyline points="22,4 12,14.01 9,11.01"/>
+                </section>
+
+                <!-- AUTO Mode (NEW - Step 3) -->
+                <section class="input-section" id="auto-mode">
+                    <div class="input-card" style="max-width: 800px; margin: 0 auto;">
+                        <div class="input-header">
+                            <span class="input-label">✨ Paste Your ORIGINAL Clean Text Here</span>
+                            <span class="char-count" id="auto-char-count">0 chars</span>
+                        </div>
+                        <textarea id="auto-clean-text" class="text-input"
+                            placeholder="Enter your original text (1 textarea only)...&#10;System will AUTO:&#10;1️⃣ Generate plagiarized version&#10;2️⃣ Detect plagiarism %&#10;3️⃣ Reconstruct clean text&#10;4️⃣ Verify similarity"
+                            oninput="updateCharCount('auto-clean-text', 'auto-char-count')"></textarea>
+                    </div>
+                    <div class="action-row" style="justify-content: center; margin-top: 24px;">
+                        <button class="btn-primary" id="btn-auto-run" onclick="runAutoPlagiarism()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                <polyline points="22,4 12,14.01 9,11.01" />
+                            </svg>
+                            🚀 Run Full Auto Workflow (4 Steps)
+                        </button>
+                        <button class="btn-secondary" onclick="clearAuto()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <polyline points="1 4 1 10 7 10" />
+                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                            </svg>
+                            Clear
+                        </button>
+                        <button class="btn-secondary" onclick="loadAutoExample()">
+                            Load Example
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Compare Mode (renamed to manual) -->
+                <section class="input-section hidden" id="compare-mode">
+                    <div class="input-grid">
+                        <div class="input-card">
+                            <div class="input-header">
+                                <span class="input-label">Original / Source Text</span>
+                                <span class="char-count" id="char-count-1">0 chars</span>
+                            </div>
+                            <textarea id="text1" class="text-input" placeholder="Paste the original source text here..."
+                                oninput="updateCharCount('text1', 'char-count-1')"></textarea>
+                        </div>
+                        <div class="input-card">
+                            <div class="input-header">
+                                <span class="input-label">Suspected / Submitted Text</span>
+                                <span class="char-count" id="char-count-2">0 chars</span>
+                            </div>
+                            <textarea id="text2" class="text-input"
+                                placeholder="Paste the suspected plagiarized text here..."
+                                oninput="updateCharCount('text2', 'char-count-2')"></textarea>
+                        </div>
+                    </div>
+                    <div class="action-row">
+                        <button class="btn-primary" id="btn-check" onclick="checkPlagiarism()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="M21 21l-4.35-4.35" />
+                            </svg>
+                            Check & Rewrite
+                        </button>
+                        <button class="btn-secondary" onclick="clearInputs()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <polyline points="1 4 1 10 7 10" />
+                                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                            </svg>
+                            Clear
+                        </button>
+                        <button class="btn-secondary" onclick="loadExample()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                            </svg>
+                            Load Example
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Corpus Mode -->
+                <section class="input-section hidden" id="corpus-mode">
+                    <div class="input-grid">
+                        <div class="input-card">
+                            <div class="input-header">
+                                <span class="input-label">Your Text (Student Submission)</span>
+                                <span class="char-count" id="char-count-input">0 chars</span>
+                            </div>
+                            <textarea id="corpus-input" class="text-input"
+                                placeholder="Paste the text to check for plagiarism..."
+                                oninput="updateCharCount('corpus-input', 'char-count-input')"></textarea>
+                        </div>
+                        <div class="input-card">
+                            <div class="input-header">
+                                <span class="input-label">Source Corpus (Reference Text)</span>
+                                <span class="char-count" id="char-count-corpus">0 chars</span>
+                            </div>
+                            <textarea id="corpus-source" class="text-input"
+                                placeholder="Paste the reference/source text to compare against..."
+                                oninput="updateCharCount('corpus-source', 'char-count-corpus')"></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Iterative Rewrite Mode -->
+                <!-- Single Sentence Iterative Mode -->
+                <section class="input-section hidden" id="rewrite-mode">
+                    <div class="input-card" style="max-width: 800px; margin: 0 auto;">
+                        <div class="input-header">
+                            <span class="input-label">📝 Paste Suspected Plag Sentence</span>
+                            <span class="char-count" id="single-plag-count">0 chars</span>
+                        </div>
+                        <textarea id="single-plag-input" class="text-input"
+                            placeholder="Enter one sentence you want to reconstruct..."
+                            oninput="updateCharCount('single-plag-input', 'single-plag-count')"></textarea>
+                    </div>
+                    <div class="action-row" style="justify-content: center; margin-top: 24px;">
+                        <button class="btn-primary" id="btn-generate-verify" onclick="generateAndVerifySingle()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                <polyline points="22,4 12,14.01 9,11.01" />
+                            </svg>
+                            Generate Reconstruction & Verify
+                        </button>
+                        <button class="btn-secondary" onclick="clearSingle()">
+                            Clear
+                        </button>
+                    </div>
+                </section>
+                <div class="action-row">
+                    <button class="btn-primary" id="btn-verify-rewrite" onclick="verifyRewrite()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                            <polyline points="22,4 12,14.01 9,11.01" />
                         </svg>
-                        Generate Reconstruction & Verify
+                        Verify My Rewrite
                     </button>
-                    <button class="btn-secondary" onclick="clearSingle()">
+                    <button class="btn-secondary" onclick="clearRewrite()">
+                        Clear All
+                    </button>
+                </div>
+                </section>
+                <div class="action-row">
+                    <button class="btn-primary" id="btn-corpus-check" onclick="checkCorpus()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                        </svg>
+                        Scan & Rewrite
+                    </button>
+                    <button class="btn-secondary" onclick="clearCorpus()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="1 4 1 10 7 10" />
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                        </svg>
                         Clear
                     </button>
+                    <button class="btn-secondary" onclick="loadCorpusExample()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                        Load Example
+                    </button>
                 </div>
-            </section>
-            <div class="action-row">
-                <button class="btn-primary" id="btn-verify-rewrite" onclick="verifyRewrite()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                        <polyline points="22,4 12,14.01 9,11.01"/>
-                    </svg>
-                    Verify My Rewrite
-                </button>
-                <button class="btn-secondary" onclick="clearRewrite()">
-                    Clear All
-                </button>
-            </div>
-        </section>
-            <div class="action-row">
-                <button class="btn-primary" id="btn-corpus-check" onclick="checkCorpus()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-                    </svg>
-                    Scan & Rewrite
-                </button>
-                <button class="btn-secondary" onclick="clearCorpus()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="1 4 1 10 7 10"/>
-                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-                    </svg>
-                    Clear
-                </button>
-                <button class="btn-secondary" onclick="loadCorpusExample()">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                    </svg>
-                    Load Example
-                </button>
-            </div>
-        </section>
+                </section>
 
-        <!-- Results Section -->
-        <section class="results-section hidden" id="results-section">
-            <div id="results-content"></div>
-        </section>
-    </main>
+                <!-- Results Section -->
+                <section class="results-section hidden" id="results-section">
+                    <div id="results-content"></div>
+                </section>
+            </main>
 
-    </main>
+            </main>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <p>Mini Project application | Copyright claim by Manisha, Joita, Debasmita, Suchitra</p>
-    </footer>
-    </div> <!-- End Workspace -->
+            <!-- Footer -->
+            <footer class="footer">
+                <p>Mini Project application | Copyright claim by Manisha, Joita, Debasmita, Suchitra</p>
+            </footer>
+        </div> <!-- End Workspace -->
     </div> <!-- End App Wrapper -->
 
     <script>
-// ─────────────────────────────────────────────
-// State & Initialization
-// ─────────────────────────────────────────────
-let currentMode = 'auto';  // Default to new Auto Mode
-let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
+        // ─────────────────────────────────────────────
+        // State & Initialization
+        // ─────────────────────────────────────────────
+        let currentMode = 'auto';  // Default to new Auto Mode
+        let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
 
         window.onload = () => {
             renderHistory();
         };
- main
+        main
 
         // ─────────────────────────────────────────────
         // Mode Switching
         // ─────────────────────────────────────────────
         function switchMode(mode) {
             currentMode = mode;
-            
+
             // Update tabs
             document.getElementById('tab-auto').classList.toggle('active', mode === 'auto');
             document.getElementById('tab-compare').classList.toggle('active', mode === 'compare');
             document.getElementById('tab-corpus').classList.toggle('active', mode === 'corpus');
             document.getElementById('tab-verify').classList.toggle('active', mode === 'verify');
-            
+
             // Update sections
             document.getElementById('auto-mode').classList.toggle('hidden', mode !== 'auto');
             document.getElementById('compare-mode').classList.toggle('hidden', mode !== 'compare');
             document.getElementById('corpus-mode').classList.toggle('hidden', mode !== 'corpus');
             document.getElementById('rewrite-mode').classList.toggle('hidden', mode !== 'verify');
-            
+
             document.getElementById('results-section').classList.add('hidden');
         }
 
@@ -414,10 +415,10 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
         function renderVerifyResults(data) {
             const color = getSeverityColor(data.current_severity);
             const gradient = getSeverityGradient(data.current_severity);
-            const statusClass = data.status === 'meaning_preserved' ? 'status-online' : 
-                               data.status === 'meaning_changed' ? 'status-fallback' : 'error-card';
-            const statusColor = data.status === 'meaning_preserved' ? '#22c55e' : 
-                               data.status === 'meaning_changed' ? '#f59e0b' : '#ef4444';
+            const statusClass = data.status === 'meaning_preserved' ? 'status-online' :
+                data.status === 'meaning_changed' ? 'status-fallback' : 'error-card';
+            const statusColor = data.status === 'meaning_preserved' ? '#22c55e' :
+                data.status === 'meaning_changed' ? '#f59e0b' : '#ef4444';
 
             document.getElementById('results-content').innerHTML = `
                 <div class="results-card fade-in">
@@ -560,7 +561,7 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
                 date: new Date().toLocaleTimeString()
             };
             actHistory.unshift(entry);
-            if(actHistory.length > 15) actHistory.pop(); // Keep last 15
+            if (actHistory.length > 15) actHistory.pop(); // Keep last 15
             localStorage.setItem('plagiarismHistory', JSON.stringify(actHistory));
             renderHistory();
         }
@@ -573,7 +574,7 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
 
         function renderHistory() {
             const container = document.getElementById('history-list');
-            if(actHistory.length === 0) {
+            if (actHistory.length === 0) {
                 container.innerHTML = '<div class="history-empty">No history yet. Run a check to save data here.</div>';
                 return;
             }
@@ -599,7 +600,7 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
         }
 
         function escapeHtml(unsafe) {
-            if(!unsafe) return '';
+            if (!unsafe) return '';
             return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
@@ -626,7 +627,7 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
                 const data = await response.json();
                 if (response.ok) {
                     renderCompareResults(data);
-                    if(data.rewritten_text) saveToHistory('Text-to-Text', data.overall_score, text2, data.rewritten_text);
+                    if (data.rewritten_text) saveToHistory('Text-to-Text', data.overall_score, text2, data.rewritten_text);
                 } else {
                     showError(data.error || 'An error occurred');
                 }
@@ -655,7 +656,7 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
                 const data = await response.json();
                 if (response.ok) {
                     renderCorpusResults(data);
-                    if(data.rewritten_text) saveToHistory('Corpus', data.overall_score, text, data.rewritten_text);
+                    if (data.rewritten_text) saveToHistory('Corpus', data.overall_score, text, data.rewritten_text);
                 } else {
                     showError(data.error || 'An error occurred');
                 }
@@ -728,14 +729,14 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
                     const statusIcon = isPlag
                         ? `<span class="plag-badge plag-yes">⚠ Plagiarized</span>`
                         : `<span class="plag-badge plag-no">✓ Clean</span>`;
-                    
+
                     const changesHtml = s.rewrite.changes_made && s.rewrite.changes_made.length > 0
                         ? `<div class="changes-list">
                             <span class="changes-label">Changes:</span>
                             ${s.rewrite.changes_made.map(c => `<span class="change-chip">${escapeHtml(c)}</span>`).join('')}
                            </div>`
                         : '';
-                    
+
                     return `
                         <div class="rewrite-card fade-in ${isPlag ? 'rewrite-card-flagged' : 'rewrite-card-clean'}" style="animation-delay: ${i * 0.1}s">
                             <div class="rewrite-card-header">
@@ -942,13 +943,13 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
                 const isPlag = r.is_plagiarized;
                 const sentColor = getSeverityColor(
                     r.match_score >= 80 ? 'high' :
-                    r.match_score >= 50 ? 'medium' :
-                    r.match_score >= 30 ? 'low' : 'none'
+                        r.match_score >= 50 ? 'medium' :
+                            r.match_score >= 30 ? 'low' : 'none'
                 );
                 const statusIcon = isPlag
                     ? `<span class="plag-badge plag-yes">⚠ Plagiarized</span>`
                     : `<span class="plag-badge plag-no">✓ Clean</span>`;
-                
+
                 const changesHtml = r.rewrite && r.rewrite.changes_made && r.rewrite.changes_made.length > 0
                     ? `<div class="changes-list">
                         <span class="changes-label">Changes:</span>
@@ -1232,9 +1233,9 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
                         <h3>Sentence Analysis (${data.sentence_analysis.length} sentences)</h3>
                         ${data.sentence_analysis.slice(0, 5).map((s, i) => `
                             <div class="mini-sentence-row">
-                                <span class="sentence-number">#${i+1}</span>
+                                <span class="sentence-number">#${i + 1}</span>
                                 <span class="sentence-text">${escapeHtml(s.sentence.slice(0, 50))}...</span>
-                                <span class="sim-badge">${(s.similarity*100).toFixed(0)}%</span>
+                                <span class="sim-badge">${(s.similarity * 100).toFixed(0)}%</span>
                                 <span class="plag-badge ${s.is_plagiarized ? 'plag-yes' : 'plag-no'}">
                                     ${s.is_plagiarized ? '⚠️ Plag' : '✅ Clean'}
                                 </span>
@@ -1261,4 +1262,5 @@ let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
         }
     </script>
 </body>
+
 </html>
