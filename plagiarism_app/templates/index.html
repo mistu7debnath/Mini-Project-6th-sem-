@@ -332,14 +332,11 @@
     </div> <!-- End App Wrapper -->
 
     <script>
-        // ─────────────────────────────────────────────
-        // State & Initialization
-        // ─────────────────────────────────────────────
- manisha-work
-        let currentMode = 'auto';  // Default to new Auto Mode
-
-        let currentMode = 'compare';
-        let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
+// ─────────────────────────────────────────────
+// State & Initialization
+// ─────────────────────────────────────────────
+let currentMode = 'auto';  // Default to new Auto Mode
+let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
 
         window.onload = () => {
             renderHistory();
