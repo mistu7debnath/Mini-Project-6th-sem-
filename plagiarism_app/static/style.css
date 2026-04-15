@@ -4,37 +4,37 @@
 
 /* ─── CSS Variables ─── */
 :root {
-    --bg-primary: #0a0a0f;
-    --bg-secondary: #111118;
-    --bg-card: rgba(17, 17, 26, 0.85);
-    --bg-card-hover: rgba(25, 25, 40, 0.9);
-    --bg-input: rgba(15, 15, 25, 0.9);
+    --bg-primary: #f8fafc;
+    --bg-secondary: #f1f5f9;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f1f5f9;
+    --bg-input: #ffffff;
 
-    --text-primary: #f0f0f5;
-    --text-secondary: #8888a0;
-    --text-muted: #555570;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
 
-    --accent-indigo: #6366f1;
-    --accent-purple: #a855f7;
-    --accent-pink: #ec4899;
-    --accent-green: #22c55e;
-    --accent-amber: #f59e0b;
-    --accent-red: #ef4444;
+    --accent-indigo: #2563eb;
+    --accent-purple: #3b82f6;
+    --accent-pink: #1d4ed8;
+    --accent-green: #059669;
+    --accent-amber: #d97706;
+    --accent-red: #dc2626;
 
-    --gradient-primary: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
-    --gradient-card: linear-gradient(145deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.04));
+    --gradient-primary: linear-gradient(135deg, #1e40af, #3b82f6);
+    --gradient-card: #ffffff;
 
-    --border-color: rgba(99, 102, 241, 0.12);
-    --border-hover: rgba(99, 102, 241, 0.25);
+    --border-color: #e2e8f0;
+    --border-hover: #cbd5e1;
 
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 20px;
-    --radius-2xl: 24px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-2xl: 20px;
 
-    --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.3);
-    --shadow-glow: 0 0 40px rgba(99, 102, 241, 0.1);
+    --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --shadow-glow: none;
 
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -68,74 +68,15 @@ body {
     overflow-x: hidden;
 }
 
-/* ─── Background Animation ─── */
-.bg-animation {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    overflow: hidden;
-    pointer-events: none;
-}
-
-.bg-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.15;
-    animation: orbFloat 20s ease-in-out infinite;
-}
-
-.bg-orb-1 {
-    width: 600px;
-    height: 600px;
-    background: var(--accent-indigo);
-    top: -200px;
-    left: -200px;
-    animation-delay: 0s;
-}
-
-.bg-orb-2 {
-    width: 500px;
-    height: 500px;
-    background: var(--accent-purple);
-    top: 50%;
-    right: -180px;
-    animation-delay: -7s;
-}
-
-.bg-orb-3 {
-    width: 400px;
-    height: 400px;
-    background: var(--accent-pink);
-    bottom: -150px;
-    left: 30%;
-    animation-delay: -14s;
-}
-
-@keyframes orbFloat {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    25% { transform: translate(50px, -30px) scale(1.05); }
-    50% { transform: translate(-30px, 50px) scale(0.95); }
-    75% { transform: translate(30px, 30px) scale(1.02); }
-}
-
-.bg-grid {
-    position: absolute;
-    inset: 0;
-    background-image:
-        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
-    background-size: 60px 60px;
-}
+/* Background elements completely removed for professional minimal design */
 
 /* ─── Header ─── */
 .header {
     position: sticky;
     top: 0;
     z-index: 100;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    background: rgba(10, 10, 15, 0.75);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -1553,4 +1494,136 @@ textarea::-webkit-scrollbar-thumb {
         gap: 4px;
     }
 }
+
+/* ─── Dashboard & History Sidebar ─── */
+.app-wrapper {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+}
+
+.history-sidebar {
+    width: 320px;
+    background: #ffffff;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    flex-shrink: 0;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.02);
+}
+
+.sidebar-header {
+    padding: 24px;
+    border-bottom: 1px solid var(--border-color);
+    background: #f8fafc;
+}
+
+.sidebar-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.history-list {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.history-empty {
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+    margin-top: 40px;
+}
+
+.history-item {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    font-size: 13px;
+}
+
+.history-head {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.hist-type {
+    display: flex;
+    align-items: center;
+}
+
+.hist-time {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.hist-score {
+    font-family: var(--font-mono);
+    color: var(--accent-indigo);
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.hist-summary {
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.hist-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.hist-btn {
+    flex: 1;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: 0.2s ease;
+}
+
+.hist-btn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--border-hover);
+}
+
+.hist-del {
+    color: var(--accent-red);
+}
+.hist-del:hover {
+    background: rgba(220, 38, 38, 0.05);
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+.workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
 

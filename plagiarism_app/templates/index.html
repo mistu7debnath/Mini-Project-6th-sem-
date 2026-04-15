@@ -11,13 +11,22 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <!-- Animated Background -->
-    <div class="bg-animation">
-        <div class="bg-orb bg-orb-1"></div>
-        <div class="bg-orb bg-orb-2"></div>
-        <div class="bg-orb bg-orb-3"></div>
-        <div class="bg-grid"></div>
-    </div>
+    <!-- Dashboard Wrapper -->
+    <div class="app-wrapper">
+        
+        <!-- Sidebar History -->
+        <aside class="history-sidebar">
+            <div class="sidebar-header">
+                <h3>Activity History</h3>
+            </div>
+            <div class="history-list" id="history-list">
+                <!-- History items injected here -->
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <div class="workspace">
+
 
     <!-- Header -->
     <header class="header" id="main-header">
@@ -313,16 +322,29 @@
         </section>
     </main>
 
+    </main>
+
     <!-- Footer -->
     <footer class="footer">
-        <p>Built with <span class="heart">♥</span> using Machine Learning &bull; Trained on 1M+ sentence pairs</p>
+        <p>Mini Project application | Copyright claim by Manisha, Joita, Debasmita, Suchitra</p>
     </footer>
+    </div> <!-- End Workspace -->
+    </div> <!-- End App Wrapper -->
 
     <script>
         // ─────────────────────────────────────────────
-        // State
+        // State & Initialization
         // ─────────────────────────────────────────────
+ manisha-work
         let currentMode = 'auto';  // Default to new Auto Mode
+
+        let currentMode = 'compare';
+        let actHistory = JSON.parse(localStorage.getItem('plagiarismHistory') || '[]');
+
+        window.onload = () => {
+            renderHistory();
+        };
+ main
 
         // ─────────────────────────────────────────────
         // Mode Switching
@@ -518,13 +540,70 @@
         function copyToClipboard(text, btnElement) {
             navigator.clipboard.writeText(text).then(() => {
                 const originalText = btnElement.innerHTML;
-                btnElement.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied!`;
+                btnElement.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied!`;
                 btnElement.classList.add('btn-copied');
                 setTimeout(() => {
                     btnElement.innerHTML = originalText;
                     btnElement.classList.remove('btn-copied');
                 }, 2000);
             });
+        }
+
+        // ─────────────────────────────────────────────
+        // History Engine
+        // ─────────────────────────────────────────────
+        function saveToHistory(type, score, textInput, textOutput) {
+            const entry = {
+                id: Date.now(),
+                type: type,
+                score: score,
+                input: textInput.substring(0, 150) + (textInput.length > 150 ? '...' : ''),
+                output: textOutput.substring(0, 150) + (textOutput.length > 150 ? '...' : ''),
+                fullOutput: textOutput,
+                date: new Date().toLocaleTimeString()
+            };
+            actHistory.unshift(entry);
+            if(actHistory.length > 15) actHistory.pop(); // Keep last 15
+            localStorage.setItem('plagiarismHistory', JSON.stringify(actHistory));
+            renderHistory();
+        }
+
+        function deleteHistory(id) {
+            actHistory = actHistory.filter(h => h.id !== id);
+            localStorage.setItem('plagiarismHistory', JSON.stringify(actHistory));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('history-list');
+            if(actHistory.length === 0) {
+                container.innerHTML = '<div class="history-empty">No history yet. Run a check to save data here.</div>';
+                return;
+            }
+            container.innerHTML = actHistory.map(h => `
+                <div class="history-item">
+                    <div class="history-head">
+                        <span class="hist-type">${h.type} Check</span>
+                        <span class="hist-time">${h.date}</span>
+                    </div>
+                    <div class="hist-score">Score: ${h.score}%</div>
+                    <p class="hist-summary"><strong>Original:</strong> ${escapeHtml(h.input)}</p>
+                    <div class="hist-actions">
+                        <button class="hist-btn hist-copy" onclick="copyToClipboard(\`${escapeForJs(h.fullOutput)}\`, this)">Copy Rewrite</button>
+                        <button class="hist-btn hist-del" onclick="deleteHistory(${h.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function escapeForJs(str) {
+            if (!str) return '';
+            return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/`/g, '\\`').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+        }
+
+        function escapeHtml(unsafe) {
+            if(!unsafe) return '';
+            return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
         // ─────────────────────────────────────────────
@@ -550,6 +629,7 @@
                 const data = await response.json();
                 if (response.ok) {
                     renderCompareResults(data);
+                    if(data.rewritten_text) saveToHistory('Text-to-Text', data.overall_score, text2, data.rewritten_text);
                 } else {
                     showError(data.error || 'An error occurred');
                 }
@@ -578,6 +658,7 @@
                 const data = await response.json();
                 if (response.ok) {
                     renderCorpusResults(data);
+                    if(data.rewritten_text) saveToHistory('Corpus', data.overall_score, text, data.rewritten_text);
                 } else {
                     showError(data.error || 'An error occurred');
                 }
@@ -713,6 +794,32 @@
                             <span class="verdict-badge" style="background: ${gradient}">${data.verdict}</span>
                             <span class="severity-label severity-${data.severity}">${data.severity.toUpperCase()} SIMILARITY</span>
                             <span class="plag-count-text">${data.plagiarized_count} of ${data.total_sentences} sentences flagged</span>
+                        </div>
+                    </div>
+
+                    <!-- Rewrite Similarity & Recheck Metric -->
+                    <div class="metrics-grid" style="margin-bottom: 24px; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="metric-card" style="border-left: 4px solid #3b82f6;">
+                            <div class="metric-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info" style="flex: 1;">
+                                <span class="metric-value">${(data.rewrite_similarity * 100).toFixed(1)}%</span>
+                                <span class="metric-label">Meaning Similarity (Plagiarized vs Rewritten)</span>
+                            </div>
+                        </div>
+                        <div class="metric-card" style="border-left: 4px solid #22c55e;">
+                            <div class="metric-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info" style="flex: 1;">
+                                <span class="metric-value">${data.recheck_score}%</span>
+                                <span class="metric-label">New Plagiarism Score (After Rewrite)</span>
+                            </div>
                         </div>
                     </div>
 
@@ -928,6 +1035,32 @@
                             <div class="corpus-stat">
                                 <span class="corpus-stat-value" style="color: #22c55e">${data.total_sentences - data.flagged_sentences}</span>
                                 <span class="corpus-stat-label">Clean</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rewrite Similarity & Recheck Metric -->
+                    <div class="metrics-grid" style="margin-top: 24px; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="metric-card" style="border-left: 4px solid #3b82f6;">
+                            <div class="metric-icon" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info" style="flex: 1;">
+                                <span class="metric-value">${(data.rewrite_similarity * 100).toFixed(1)}%</span>
+                                <span class="metric-label">Meaning Similarity (Original vs Rewritten)</span>
+                            </div>
+                        </div>
+                        <div class="metric-card" style="border-left: 4px solid #22c55e;">
+                            <div class="metric-icon" style="background: rgba(34, 197, 94, 0.15); color: #22c55e;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                            </div>
+                            <div class="metric-info" style="flex: 1;">
+                                <span class="metric-value">${data.recheck_score}%</span>
+                                <span class="metric-label">New Plagiarism Score (After Rewrite)</span>
                             </div>
                         </div>
                     </div>
