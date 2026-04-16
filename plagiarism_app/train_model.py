@@ -15,10 +15,12 @@ Usage:
     python train_model.py --sample 200000   # use only 200k rows for faster training
 """
 
+import glob
 import os
 import sys
 import time
 import argparse
+from typing import Optional
 import numpy as np
 import pandas as pd
 import joblib
@@ -95,6 +97,31 @@ def load_dataset(dataset_path: str, sample_size: int | None = None) -> pd.DataFr
         df = df.sample(n=sample_size, random_state=42).reset_index(drop=True)
 
     return df
+
+
+def find_dataset_file(default_path: str) -> Optional[str]:
+    if os.path.exists(default_path):
+        return default_path
+
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    candidates = [
+        os.path.join(root_dir, "sentence_similarity_dataset.csv"),
+        os.path.join(root_dir, "paragraph_dataset_10000.csv"),
+        os.path.join(root_dir, "paragraph_dataset_5000.csv"),
+        os.path.join(root_dir, "paragraph_dataset.csv"),
+        os.path.join(root_dir, "dataset.csv")
+    ]
+
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+
+    wildcard_candidates = sorted(glob.glob(os.path.join(root_dir, "paragraph_dataset*.csv")))
+    if wildcard_candidates:
+        return wildcard_candidates[-1]
+
+    wildcard_candidates = sorted(glob.glob(os.path.join(root_dir, "*dataset*.csv")))
+    return wildcard_candidates[-1] if wildcard_candidates else None
 
 
 def create_features(df: pd.DataFrame, vectorizer: TfidfVectorizer = None, fit: bool = True):
@@ -264,11 +291,9 @@ def main():
     dataset_path = args.dataset or DATASET_PATH
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset not found at: {dataset_path}")
-        # Try looking for dataset.csv
-        alt_path = os.path.join(os.path.dirname(__file__), "..", "dataset.csv")
-        if os.path.exists(alt_path):
-            print(f"   Found alternative: {alt_path}")
-            dataset_path = alt_path
+        dataset_path = find_dataset_file(dataset_path)
+        if dataset_path:
+            print(f"   Found dataset file: {dataset_path}")
         else:
             print("   No dataset file found. Please generate the dataset first.")
             sys.exit(1)
