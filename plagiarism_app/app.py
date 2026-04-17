@@ -31,6 +31,7 @@ from flask import Flask, render_template, request, jsonify
 from scipy.sparse import hstack, csr_matrix
 from difflib import SequenceMatcher
 import urllib.request
+import urllib.error
 import json
 import ssl
 from concurrent.futures import ThreadPoolExecutor
@@ -47,6 +48,11 @@ MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 MODEL_PATH = os.path.join(MODEL_DIR, "plagiarism_model.pkl")
 VECTORIZER_PATH = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
 METADATA_PATH = os.path.join(MODEL_DIR, "model_metadata.pkl")
+
+def get_openai_config():
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    model = os.getenv("OPENAI_API_MODEL", "gpt-3.5-turbo").strip()
+    return key, model, bool(key)
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -65,7 +71,7 @@ def load_model():
     global model, vectorizer, metadata
 
     if not os.path.exists(MODEL_PATH):
-        print("⚠️  Model not found! Please run train_model.py first.")
+        print("  Model not found! Please run train_model.py first.")
         print(f"   Expected at: {MODEL_PATH}")
         return False
 
@@ -74,9 +80,84 @@ def load_model():
     vectorizer = joblib.load(VECTORIZER_PATH)
     metadata = joblib.load(METADATA_PATH)
 
-    print(f"   ✅ Model loaded (accuracy: {metadata.get('accuracy', 'N/A'):.4f})")
-    print(f"   ✅ Vectorizer loaded ({metadata.get('tfidf_max_features', 'N/A')} features)")
+    print(f"    Model loaded (accuracy: {metadata.get('accuracy', 'N/A'):.4f})")
+    print(f"    Vectorizer loaded ({metadata.get('tfidf_max_features', 'N/A')} features)")
     return True
+
+
+def get_rewrite_engine(sentence_analysis: list[dict]) -> str:
+    """Return the active rewrite engine used for the analyzed sentences."""
+    for item in sentence_analysis:
+        rewrite = item.get("rewrite", {})
+        if rewrite.get("rewrite_method") == "openai":
+            return "openai"
+    return "local"
+
+
+def llm_rewrite_sentence(sentence: str, source_sentence: str = "") -> str | None:
+    """Use OpenAI Chat Completion to rewrite a sentence if an API key is available."""
+    api_key, api_model, api_ready = get_openai_config()
+    if not api_ready:
+        return None
+
+    prompt = (
+        "Rewrite the following sentence into clear, grammatically correct English. "
+        "Keep the meaning intact, remove any awkward or invented wording, and make the result sound like proper human prose. "
+        "If the input looks like a headline or news sentence, preserve that style while making it fluent and readable. "
+        "Return a single polished sentence with no explanation."
+    )
+    if source_sentence:
+        prompt += " The source sentence is provided for reference, but do not reuse the same phrases, structure, or unusual words."
+
+    prompt += "\n\nSentence: " + sentence
+    if source_sentence:
+        prompt += "\nSource sentence: " + source_sentence
+
+    def call_openai(current_prompt: str) -> str | None:
+        payload = json.dumps({
+            "model": api_model,
+            "messages": [
+                {"role": "system", "content": "You are a skilled rewrite assistant that produces polished, natural English sentences."},
+                {"role": "user", "content": current_prompt},
+            ],
+            "temperature": 0.2,
+            "top_p": 1,
+            "max_tokens": max(200, len(sentence.split()) * 4),
+        }).encode("utf-8")
+
+        request_url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            request_obj = urllib.request.Request(request_url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(request_obj, context=ssl.create_default_context(), timeout=30) as response:
+                response_data = json.loads(response.read().decode("utf-8"))
+                choices = response_data.get("choices", [])
+                if not choices:
+                    return None
+                return choices[0].get("message", {}).get("content", "").strip() or None
+        except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+            return None
+
+    first_attempt = call_openai(prompt)
+    if not first_attempt:
+        return None
+
+    if first_attempt.strip().lower() == sentence.strip().lower() or compute_text_similarity(sentence, first_attempt) > 0.90:
+        stronger_prompt = prompt + (
+            "\n\nThe rewritten sentence should be significantly clearer and more natural than the original. "
+            "If the first rewrite still sounds awkward or contains strange wording, create a more fluent version with common vocabulary."
+        )
+        second_attempt = call_openai(stronger_prompt)
+        result = second_attempt or first_attempt
+    else:
+        result = first_attempt
+
+    app.logger.info("OpenAI rewrite used for sentence: %s", sentence)
+    return result
 
 
 # ─────────────────────────────────────────────────────────
@@ -353,11 +434,28 @@ def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
             "plagiarized": sentence,
             "rewritten": sentence,
             "changes_made": [],
-            "similarity_to_original": 1.0
+            "meaning_preserved": 1.0,
+            "rewrite_method": "local"
         }
 
     original = sentence.strip()
-    
+
+    _, _, api_ready = get_openai_config()
+    if api_ready:
+        llm_result = llm_rewrite_sentence(original, source_sentence)
+        if llm_result:
+            source_sim_before = compute_text_similarity(original, source_sentence) if source_sentence else 0
+            source_sim_after = compute_text_similarity(llm_result, source_sentence) if source_sentence else 0
+            return {
+                "plagiarized": original,
+                "rewritten": llm_result,
+                "changes_made": ["LLM rewrite"],
+                "rewrite_method": "openai",
+                "meaning_preserved": compute_text_similarity(original, llm_result),
+                "source_similarity_before": source_sim_before,
+                "source_similarity_after": source_sim_after,
+            }
+
     # Prefetch vocabulary to handle the operation completely without blocking
     prefetch_synonyms(original)
 
@@ -434,6 +532,7 @@ def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
         "plagiarized": original,
         "rewritten": rewritten,
         "changes_made": changes,
+        "rewrite_method": "local",
         "meaning_preserved": meaning_similarity,
         "source_similarity_before": source_sim_before,
         "source_similarity_after": source_sim_after,
@@ -843,6 +942,7 @@ def check_plagiarism():
                 "plagiarized": sent2,
                 "rewritten": sent2,  # Keep as is — it's clean
                 "changes_made": [],
+                "rewrite_method": "local",
                 "meaning_preserved": 1.0,
                 "source_similarity_before": best_sim,
                 "source_similarity_after": best_sim,
@@ -876,6 +976,7 @@ def check_plagiarism():
     result["rewritten_text"] = rewritten_full_text
     result["rewrite_similarity"] = rewrite_similarity
     result["recheck_score"] = recheck_score
+    result["rewrite_engine"] = get_rewrite_engine(sentence_analysis)
     result["total_sentences"] = len(sentences_text2)
     result["plagiarized_count"] = sum(1 for s in sentence_analysis if s["is_plagiarized"])
     
@@ -967,15 +1068,9 @@ def auto_plagiarism_pipeline():
                 best_source = sent_source
         
         is_plag = best_sim >= 0.5
-        if is_plag:
-            rewrite_result = rewrite_sentence_human(sent_suspected, best_source)
-        else:
-            rewrite_result = {
-                "plagiarized": sent_suspected,
-                "rewritten": sent_suspected,
-                "changes_made": [],
-                "meaning_preserved": 1.0
-            }
+        rewrite_result = rewrite_sentence_human(sent_suspected, best_source)
+        if not rewrite_result.get("rewrite_method"):
+            rewrite_result["rewrite_method"] = "local"
         
         sentence_analysis.append({
             "sentence": sent_suspected,
@@ -1001,6 +1096,7 @@ def auto_plagiarism_pipeline():
         # Step 2
         "detection": detection,
         "sentence_analysis": sentence_analysis,
+        "rewrite_engine": get_rewrite_engine(sentence_analysis),
         # Step 3
         "reconstructed_text": reconstructed_text,
         # Step 4
@@ -1067,6 +1163,7 @@ def compare_corpus():
                 "plagiarized": input_sent,
                 "rewritten": input_sent,
                 "changes_made": [],
+                "rewrite_method": "local",
                 "meaning_preserved": 1.0,
                 "source_similarity_before": best_score / 100,
                 "source_similarity_after": best_score / 100,
@@ -1124,6 +1221,7 @@ def compare_corpus():
         "overall_verdict": overall_verdict,
         "total_sentences": len(input_sentences),
         "flagged_sentences": sum(1 for r in results if r["is_plagiarized"]),
+        "rewrite_engine": get_rewrite_engine(results),
         "sentence_results": results,
         "original_text": input_text,
         "rewritten_text": rewritten_full_text,
