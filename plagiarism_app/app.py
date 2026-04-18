@@ -160,6 +160,62 @@ def llm_rewrite_sentence(sentence: str, source_sentence: str = "") -> str | None
     return result
 
 
+def llm_generate_plagiarized(clean_text: str) -> tuple[str, str] | None:
+    """Use OpenAI to generate a naturally plagiarized version of clean text."""
+    api_key, api_model, api_ready = get_openai_config()
+    if not api_ready:
+        return None
+
+    prompt = (
+        "You are a plagiarism simulation assistant. "
+        "Given a clean source paragraph, rewrite it into a natural, fluent student-style version that preserves the original meaning. "
+        "Keep most proper names and titles unchanged. "
+        "The output should contain approximately 50% exact wording from the original and 50% rewritten phrasing. "
+        "Do not invent nonsense words, do not distort facts, and keep the text readable. "
+        "Return only the rewritten paragraph with no explanation."
+    )
+    prompt += "\n\nSource paragraph:\n" + clean_text
+
+    def call_openai(current_prompt: str) -> str | None:
+        payload = json.dumps({
+            "model": api_model,
+            "messages": [
+                {"role": "system", "content": "You are a skilled text transformation assistant."},
+                {"role": "user", "content": current_prompt},
+            ],
+            "temperature": 0.45,
+            "top_p": 1,
+            "max_tokens": max(200, len(clean_text.split()) * 4),
+        }).encode("utf-8")
+
+        request_url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            request_obj = urllib.request.Request(request_url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(request_obj, context=ssl.create_default_context(), timeout=60) as response:
+                response_data = json.loads(response.read().decode("utf-8"))
+                choices = response_data.get("choices", [])
+                if not choices:
+                    return None
+                return choices[0].get("message", {}).get("content", "").strip() or None
+        except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
+            return None
+
+    plag_text = call_openai(prompt)
+    if not plag_text:
+        return None
+
+    if plag_text.strip().lower() == clean_text.strip().lower():
+        return None
+
+    app.logger.info("OpenAI generated auto-plagiarized text using %s.", api_model)
+    return plag_text, api_model
+
+
 # ─────────────────────────────────────────────────────────
 # AUTO-PLAGIARISM SIMULATION (NEW)
 # ─────────────────────────────────────────────────────────
@@ -174,24 +230,95 @@ def auto_generate_plagiarized(clean_text: str) -> tuple[str, str, dict]:
     verbatim_count = 0
     rewritten_count = 0
     
-    for sent in sentences:
-        if random.random() < 0.7:  # 70% verbatim copy (plagiarism)
-            plag_sentences.append(sent)
-            verbatim_count += 1
-        else:  # 30% light rewrite (student attempt)
-            light_rewrite = rewrite_sentence_human(sent, sent)["rewritten"]  # Use itself as "source" for light change
-            plag_sentences.append(light_rewrite)
-            rewritten_count += 1
-    
-    suspected_text = " ".join(plag_sentences)
+    llm_result = llm_generate_plagiarized(clean_text)
+    if llm_result:
+        plag_text, model_used = llm_result
+        suspected_text = plag_text
+        verbatim_count = round(len(sentences) * 0.5)
+        rewritten_count = len(sentences) - verbatim_count
+    else:
+        model_used = None
+        for sent in sentences:
+            if random.random() < 0.7:  # 70% verbatim copy (plagiarism)
+                plag_sentences.append(sent)
+                verbatim_count += 1
+            else:  # 30% light rewrite (student attempt)
+                light_rewrite = create_light_plagiarism_variant(sent)
+                plag_sentences.append(light_rewrite)
+                rewritten_count += 1
+        suspected_text = " ".join(plag_sentences)
+
     stats = {
         "verbatim_sentences": verbatim_count,
         "rewritten_sentences": rewritten_count,
         "total_sentences": len(sentences),
-        "plagiarism_ratio": round(verbatim_count / len(sentences) * 100, 1)
+        "plagiarism_ratio": round(verbatim_count / len(sentences) * 100, 1),
+        "generated_with_llm": bool(model_used),
+        "llm_model_used": model_used or "none"
     }
     
     return suspected_text, clean_text, stats
+
+
+def preserve_punctuation_token(word: str, replacement: str) -> str:
+    """Preserve punctuation around a replaced word."""
+    match = re.match(r'^([^\w]*)([\w-]+)([^\w]*)$', word)
+    if not match:
+        return replacement
+    return f"{match.group(1)}{replacement}{match.group(3)}"
+
+
+def create_light_plagiarism_variant(sentence: str) -> str:
+    """Create a plausible lightly rewritten version of a sentence."""
+    words = sentence.split()
+    if len(words) < 4:
+        return sentence
+
+    candidate = words.copy()
+    replaceable_indices = []
+
+    for index, word in enumerate(words):
+        clean = word.strip(".,!?;:'\"-()")
+        if len(clean) <= 3:
+            continue
+        if index > 0 and word[0].isupper():
+            continue
+        if clean.lower() in {
+                "this", "that", "have", "has", "had", "will", "would", "could", "should",
+                "and", "or", "but", "for", "with", "from", "into", "about", "after",
+                "before", "during", "through", "across", "near", "when", "while", "where"
+        }:
+            continue
+
+        synonyms = SYNONYM_MAP.get(clean.lower(), [])
+        if synonyms:
+            replaceable_indices.append(index)
+
+    random.shuffle(replaceable_indices)
+    replacements = 0
+
+    for idx in replaceable_indices:
+        if replacements >= 2:
+            break
+
+        word = words[idx]
+        clean = word.strip(".,!?;:'\"-()")
+        synonyms = SYNONYM_MAP.get(clean.lower(), [])
+        safe_synonyms = [syn for syn in synonyms if re.fullmatch(r"[A-Za-z ]+", syn) and syn.lower() != clean.lower()]
+        if not safe_synonyms:
+            continue
+
+        chosen = random.choice(safe_synonyms)
+        if word[0].isupper():
+            chosen = chosen.capitalize()
+
+        candidate[idx] = preserve_punctuation_token(word, chosen)
+        replacements += 1
+
+    candidate_sentence = " ".join(candidate)
+    candidate_sentence = restructure_sentence(candidate_sentence)
+    candidate_sentence = normalize_sentence(candidate_sentence)
+    return candidate_sentence
 
 
 # ─────────────────────────────────────────────────────────
@@ -290,12 +417,12 @@ SYNONYM_MAP = {
     "car": ["vehicle", "automobile", "ride"],
     "road": ["street", "path", "route"],
     "money": ["cash", "funds", "currency"],
-    "work": ["job", "task", "assignment"],
+    "work": ["collaborate", "team up", "work together"],
     "book": ["publication", "volume", "text"],
     "food": ["meal", "cuisine", "nourishment"],
     "friend": ["companion", "pal", "buddy"],
     "children": ["kids", "youngsters", "little ones"],
-    "people": ["individuals", "folks", "persons"],
+    "people": ["folks", "friends", "group"],
     "school": ["academy", "institution", "educational facility"],
     "problem": ["issue", "challenge", "difficulty"],
     "idea": ["concept", "notion", "thought"],
@@ -305,7 +432,7 @@ SYNONYM_MAP = {
     "teacher": ["educator", "instructor", "professor"],
     "scientist": ["researcher", "scholar", "investigator"],
     "doctor": ["physician", "medical professional", "practitioner"],
-    "company": ["firm", "organization", "business"],
+    "company": ["team", "group", "circle"],
     "project": ["undertaking", "initiative", "venture"],
     "report": ["document", "paper", "account"],
     "meeting": ["gathering", "conference", "assembly"],
@@ -325,7 +452,7 @@ SYNONYM_MAP = {
     "important": ["crucial", "vital", "significant"],
     "new": ["fresh", "novel", "recent"],
     "old": ["ancient", "aged", "vintage"],
-    "good": ["excellent", "great", "fine"],
+    "good": ["nice", "pleasant", "great"],
     "bad": ["terrible", "awful", "poor"],
     "difficult": ["challenging", "tough", "demanding"],
     "easy": ["simple", "straightforward", "effortless"],
@@ -375,9 +502,18 @@ WORD_CACHE = {}
 
 def prefetch_synonyms(text: str):
     """Fetch synonyms for long words in parallel to avoid UI lag."""
-    words = [w.lower().strip(".,!?;:'\"-()") for w in text.split()]
-    # Filter words > 3 chars and not in cache
-    target_words = list(set([w for w in words if len(w) > 3 and w not in WORD_CACHE]))
+    words = [w for w in text.split()]
+    # Filter words > 3 chars, not proper nouns, and not already cached
+    target_words = []
+    for w in words:
+        clean = w.strip(".,!?;:'\"-()").lower()
+        if len(clean) <= 3:
+            continue
+        if w[0].isupper() and not w.isupper():
+            continue
+        if clean and clean not in WORD_CACHE:
+            target_words.append(clean)
+    target_words = list(set(target_words))
     
     if not target_words:
         return
@@ -419,6 +555,18 @@ def get_synonyms_for_word(word: str) -> list[str]:
     return []
 
 
+def get_rewrite_synonyms(word: str, static_only: bool = False) -> list[str]:
+    """Get a cleaned list of synonyms for sentence rewriting."""
+    clean = word.lower().strip(".,!?;:'\"-()")
+    synonyms = []
+
+    if clean in SYNONYM_MAP:
+        synonyms.extend(SYNONYM_MAP[clean])
+
+    filtered = [s for s in synonyms if re.fullmatch(r"[A-Za-z ]+", s)]
+    return list(dict.fromkeys(filtered))
+
+
 def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
     """
     Rewrite a plagiarized sentence into a human-like original version.
@@ -439,6 +587,7 @@ def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
         }
 
     original = sentence.strip()
+    static_only = bool(source_sentence and source_sentence.strip().lower() == original.lower())
 
     _, _, api_ready = get_openai_config()
     if api_ready:
@@ -459,67 +608,57 @@ def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
     # Prefetch vocabulary to handle the operation completely without blocking
     prefetch_synonyms(original)
 
-    best_rewritten = original
-    best_sim = 1.0
     changes = []
+    words = original.split()
+    new_words = []
+    replaced = 0
+    max_replacements = 2
 
-    # Iterative aggressive rewrite to ensure plagiarism is removed
-    for attempt in range(5):
-        words = best_rewritten.split()
-        new_words = []
-        for word in words:
-            # Strip punctuation for lookup
-            clean = word.lower().rstrip(".,!?;:'\"")
-            trail = word[len(word.rstrip(".,!?;:'\"")):]
-            
-            synonyms = get_synonyms_for_word(clean)
-            if synonyms:
-                # Pick a synonym that's completely different from the source
-                if source_sentence:
-                    source_lower = source_sentence.lower()
-                    safe_synonyms = [s for s in synonyms if s.lower() not in source_lower]
-                    chosen = random.choice(safe_synonyms) if safe_synonyms else random.choice(synonyms)
-                else:
-                    chosen = random.choice(synonyms)
-                
-                # Preserve capitalization
-                if word and word[0].isupper():
-                    chosen = chosen[0].upper() + chosen[1:]
-                
-                new_words.append(chosen + trail)
-                if clean != chosen.lower() and f"'{clean}' → '{chosen}'" not in changes:
-                    changes.append(f"'{clean}' → '{chosen}'")
+    for index, word in enumerate(words):
+        # Strip punctuation for lookup
+        clean = word.lower().rstrip(".,!?;:'\"")
+        trail = word[len(word.rstrip(".,!?;:'\"")):]
+
+        # Avoid changing proper nouns, titles, and quoted terms
+        if index > 0 and word[0].isupper():
+            new_words.append(word)
+            continue
+        if word.startswith(('"', "'")) or word.endswith(('"', "'")):
+            new_words.append(word)
+            continue
+
+        if replaced >= max_replacements:
+            new_words.append(word)
+            continue
+
+        synonyms = get_rewrite_synonyms(word, static_only=static_only)
+        if synonyms:
+            if source_sentence:
+                source_lower = source_sentence.lower()
+                safe_synonyms = [s for s in synonyms if s.lower() not in source_lower]
+                chosen = random.choice(safe_synonyms) if safe_synonyms else random.choice(synonyms)
             else:
-                new_words.append(word)
-        
-        candidate = " ".join(new_words)
+                chosen = random.choice(synonyms)
 
-        # Restructure and change voice
-        candidate = restructure_sentence(candidate)
-        candidate = try_voice_change(candidate)
+            # Preserve capitalization
+            if word and word[0].isupper():
+                chosen = chosen[0].upper() + chosen[1:]
 
-        if source_sentence:
-            sim = compute_text_similarity(candidate, source_sentence)
-            if sim < best_sim:
-                best_sim = sim
-                best_rewritten = candidate
-            
-            # If similarity achieves perfectly safe levels, exit early
-            if sim <= 0.45:
-                break
+            new_words.append(chosen + trail)
+            replaced += 1
+            if clean != chosen.lower() and f"'{clean}' → '{chosen}'" not in changes:
+                changes.append(f"'{clean}' → '{chosen}'")
         else:
-            best_rewritten = candidate
-            break
-            
-    rewritten = best_rewritten
+            new_words.append(word)
 
-    # ─── Step 4: If STILL too similar to source, strictly force it below bounds ───
+    candidate = " ".join(new_words)
+    rewritten = normalize_sentence(candidate)
+
+    # If the rewrite is still very close to source, allow a mild structural shuffle
     if source_sentence:
         final_sim = compute_text_similarity(rewritten, source_sentence)
-        if final_sim > 0.5:
-            # Drastically append phrasing
-            rewritten = add_human_phrasing(rewritten)
-            changes.append("applied structural expansion to bypass detection")
+        if final_sim > 0.9:
+            rewritten = normalize_sentence(restructure_sentence(rewritten))
 
     # Compute final similarity to the plagiarized input
     meaning_similarity = compute_text_similarity(original, rewritten)
@@ -567,31 +706,52 @@ def restructure_sentence(sentence: str) -> str:
             main_clause = words_clean[:i]
             
             if len(prep_phrase) >= 2 and len(main_clause) >= 2:
-                # Capitalize prep phrase start, lowercase main clause start
+                # Capitalize prep phrase start, preserve proper noun capitalization in the main clause
                 prep_phrase[0] = prep_phrase[0].capitalize()
-                main_clause[0] = main_clause[0][0].lower() + main_clause[0][1:]
-                
+                if main_clause[0][0].isupper() and main_clause[0] != main_clause[0].lower():
+                    main_clause[0] = main_clause[0]
+                else:
+                    main_clause[0] = main_clause[0][0].lower() + main_clause[0][1:]
+
                 result = " ".join(prep_phrase) + ", " + " ".join(main_clause) + punct
                 return result
             break
 
-    # Strategy 2: Convert "X did Y" to "Y was done by X" style phrasing
-    # But only if we haven't changed already
-    if len(words_clean) >= 4:
-        # Swap first half and second half with connecting word
-        mid = len(words_clean) // 2
-        second = words_clean[mid:]
-        first = words_clean[:mid]
-        
-        second[0] = second[0].capitalize()
-        first[0] = first[0][0].lower() + first[0][1:]
-        
-        # Only apply if it produces a significantly different result
-        candidate = " ".join(second) + " — " + " ".join(first) + punct
-        if compute_text_similarity(sentence, candidate) < 0.85:
-            return candidate
+    return normalize_sentence(sentence)
 
-    return sentence + ("" if sentence.endswith(tuple(".!?")) else "")
+
+def normalize_sentence(sentence: str) -> str:
+    """Clean and normalize rewritten text for proper punctuation and capitalization."""
+    if sentence is None:
+        return ""
+
+    sentence = sentence.strip()
+    sentence = re.sub(r'\s+', ' ', sentence)
+    sentence = re.sub(r'\s+([,\.!?;:])', r'\1', sentence)
+    sentence = re.sub(r'([,\.!?;:])([^\s\)\'\"])', r'\1 \2', sentence)
+    sentence = re.sub(r'\(\s+', '(', sentence)
+    sentence = re.sub(r'\s+\)', ')', sentence)
+    sentence = re.sub(r'\s+-\s+', ' - ', sentence)
+    sentence = re.sub(r'\s+"', ' "', sentence)
+    sentence = re.sub(r'"\s+', '" ', sentence)
+    sentence = re.sub(r"\s+'", " '", sentence)
+    sentence = re.sub(r"'\s+", "' ", sentence)
+
+    # Capitalize after sentence boundaries and opening quotes
+    def cap_match(match):
+        prefix = match.group(1)
+        quote = match.group(2) or ''
+        char = match.group(3)
+        return prefix + quote + char.upper()
+
+    sentence = re.sub(r'(^|[\.\!?]\s+)(["\']?)([a-z])', cap_match, sentence)
+    sentence = re.sub(r'\bi\b', 'I', sentence)
+
+    sentence = sentence.strip()
+    if sentence and sentence[-1] not in '.!?':
+        sentence += '.'
+
+    return sentence
 
 
 def try_voice_change(sentence: str) -> str:
@@ -747,6 +907,36 @@ def compute_word_overlap(text1: str, text2: str) -> float:
     return round(len(intersection) / len(union), 4) if union else 0.0
 
 
+def compute_tfidf_cosine_similarity(text1: str, text2: str) -> float:
+    """Compute TF-IDF cosine similarity if vectorizer is available."""
+    if vectorizer is None:
+        return 0.0
+
+    tfidf1 = vectorizer.transform([text1])
+    tfidf2 = vectorizer.transform([text2])
+    dot = np.array((tfidf1.multiply(tfidf2)).sum(axis=1)).flatten()
+    norm1 = np.sqrt(np.array(tfidf1.multiply(tfidf1).sum(axis=1)).flatten())
+    norm2 = np.sqrt(np.array(tfidf2.multiply(tfidf2).sum(axis=1)).flatten())
+    denom = norm1 * norm2
+    denom[denom == 0] = 1e-10
+    cosine_sim = float(dot / denom)
+    return round(cosine_sim, 4)
+
+
+def blend_similarity(text1: str, text2: str) -> float:
+    """Blend multiple similarity signals into a single robust score."""
+    sequence_sim = compute_text_similarity(text1, text2)
+    word_overlap = compute_word_overlap(text1, text2)
+    cosine_sim = compute_tfidf_cosine_similarity(text1, text2)
+
+    if cosine_sim > 0:
+        blended = (cosine_sim * 0.5) + (sequence_sim * 0.3) + (word_overlap * 0.2)
+    else:
+        blended = (sequence_sim * 0.6) + (word_overlap * 0.4)
+
+    return round(min(max(blended, 0.0), 1.0), 4)
+
+
 def create_features_for_pair(text1: str, text2: str):
     """Create feature vector for a single text pair."""
     if vectorizer is None:
@@ -827,19 +1017,18 @@ def analyze_pair(text1: str, text2: str) -> dict:
     # Rule-based metrics
     sequence_sim = compute_text_similarity(text1, text2)
     word_overlap = compute_word_overlap(text1, text2)
+    cosine_sim = compute_tfidf_cosine_similarity(text1, text2)
+    blended_similarity = blend_similarity(text1, text2)
     matching_segments = find_matching_segments(text1, text2)
 
     # Determine plagiarism level
     if prediction is not None:
         is_plagiarized = bool(prediction)
     else:
-        is_plagiarized = sequence_sim >= 0.6 or word_overlap >= 0.5
+        is_plagiarized = blended_similarity >= 0.6
 
-    # Compute overall score (0-100)
-    if confidence is not None:
-        overall_score = round(confidence * 100 if is_plagiarized else (1 - confidence) * 100, 1)
-    else:
-        overall_score = round(max(sequence_sim, word_overlap) * 100, 1)
+    # Compute overall similarity score (0-100)
+    overall_score = round(blended_similarity * 100, 1)
 
     # Severity
     if overall_score >= 80:
@@ -863,6 +1052,8 @@ def analyze_pair(text1: str, text2: str) -> dict:
         "metrics": {
             "sequence_similarity": sequence_sim,
             "word_overlap": word_overlap,
+            "cosine_similarity": cosine_sim,
+            "blended_similarity": blended_similarity,
             "ml_confidence": confidence,
             "ml_prediction": prediction,
         },
@@ -883,10 +1074,16 @@ def index():
 @app.route("/api/health")
 def health():
     """Health check endpoint."""
+    api_key, api_model, api_ready = get_openai_config()
     return jsonify({
         "status": "ok",
         "model_loaded": model is not None,
         "metadata": metadata if metadata else {},
+        "openai": {
+            "enabled": api_ready,
+            "model": api_model,
+            "has_api_key": bool(api_key),
+        },
     })
 
 
@@ -1068,7 +1265,10 @@ def auto_plagiarism_pipeline():
                 best_source = sent_source
         
         is_plag = best_sim >= 0.5
-        rewrite_result = rewrite_sentence_human(sent_suspected, best_source)
+        if is_plag and best_source:
+            rewrite_result = rewrite_sentence_human(sent_suspected, best_source)
+        else:
+            rewrite_result = rewrite_sentence_human(sent_suspected, best_source)
         if not rewrite_result.get("rewrite_method"):
             rewrite_result["rewrite_method"] = "local"
         
@@ -1093,6 +1293,8 @@ def auto_plagiarism_pipeline():
         "original_clean": original_clean,
         "auto_suspected": suspected_text,
         "simulation_stats": simulation_stats,
+        "auto_model_used": simulation_stats.get("llm_model_used", "none"),
+        "auto_generated_with_llm": simulation_stats.get("generated_with_llm", False),
         # Step 2
         "detection": detection,
         "sentence_analysis": sentence_analysis,
