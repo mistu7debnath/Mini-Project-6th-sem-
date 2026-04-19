@@ -13,6 +13,7 @@ A polished, end-to-end plagiarism detection and rewrite assistant built for acad
 - analyze sentence-level and corpus-level similarity
 - generate rewritten text that preserves meaning while reducing plagiarism risk
 - provide a responsive browser UI for quick review, comparison, and history
+- show expandable sentence analysis with "Read more" toggles for full sentence detail
 
 The core components include:
 - `plagiarism_app/` — Flask web application, API endpoints, and frontend UI
@@ -58,6 +59,8 @@ http://localhost:5000
 ```
 
 > Note: The app expects model artifacts in `plagiarism_app/models/`.
+>
+> Tip: In the sentence analysis panel, long sentences are shown as previews with a `Read more` button so you can expand them fully.
 
 ---
 
