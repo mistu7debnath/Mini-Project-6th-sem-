@@ -919,7 +919,7 @@ def compute_tfidf_cosine_similarity(text1: str, text2: str) -> float:
     norm2 = np.sqrt(np.array(tfidf2.multiply(tfidf2).sum(axis=1)).flatten())
     denom = norm1 * norm2
     denom[denom == 0] = 1e-10
-    cosine_sim = float(dot / denom)
+    cosine_sim = float((dot / denom).item())
     return round(cosine_sim, 4)
 
 
