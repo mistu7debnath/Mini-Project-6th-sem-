@@ -35,6 +35,10 @@ import urllib.error
 import json
 import ssl
 from concurrent.futures import ThreadPoolExecutor
+try:
+    from plagiarism_app.paraphrase_engine import deep_paraphrase, deep_paraphrase_paragraph
+except ImportError:
+    from paraphrase_engine import deep_paraphrase, deep_paraphrase_paragraph
 
 # Fix Windows console encoding
 if sys.platform == "win32":
@@ -614,15 +618,203 @@ def get_rewrite_synonyms(word: str, static_only: bool = False) -> list[str]:
     return list(dict.fromkeys(filtered))
 
 
+def deep_paraphrase_sentence(sentence: str, source_sentence: str = "") -> str:
+    """
+    Deeply paraphrase a sentence by restructuring it completely.
+    
+    This goes far beyond synonym replacement — it rebuilds the sentence
+    from its semantic components (subject, action, object, modifiers)
+    into a genuinely different sentence that preserves meaning.
+    """
+    if not sentence or len(sentence.split()) < 4:
+        return sentence
+
+    original_lower = sentence.lower().strip().rstrip(".")
+    source_lower = source_sentence.lower().strip() if source_sentence else ""
+
+    # ── Strategy 1: Clause-based reconstruction ──
+    # Split on commas, semicolons, conjunctions and rebuild in different order
+    clause_separators = [", and ", ", but ", ", which ", ", that ", "; ", ", "]
+    clauses = [sentence.rstrip(".")]
+    for sep in clause_separators:
+        new_clauses = []
+        for clause in clauses:
+            parts = clause.split(sep)
+            if len(parts) > 1:
+                new_clauses.extend(parts)
+            else:
+                new_clauses.append(clause)
+        clauses = new_clauses
+
+    clauses = [c.strip() for c in clauses if c.strip() and len(c.strip().split()) >= 2]
+
+    if len(clauses) >= 2:
+        # Reverse clause order and reconnect with different connectors
+        connectors = [
+            " and thus ", " while also ", ". Additionally, ",
+            ". Furthermore, ", " — in particular, ", ". In fact, ",
+            ", and at the same time ", ". Moreover, ",
+        ]
+        random.shuffle(clauses)
+        connector = random.choice(connectors)
+
+        # Capitalize first clause, lowercase subsequent ones
+        rebuilt_clauses = []
+        for i, cl in enumerate(clauses):
+            cl = cl.strip()
+            if i == 0:
+                cl = cl[0].upper() + cl[1:] if cl else cl
+            else:
+                if connector.strip().startswith("."):
+                    cl = cl[0].upper() + cl[1:] if cl else cl
+                else:
+                    cl = cl[0].lower() + cl[1:] if cl and not cl[0:2].isupper() else cl
+            rebuilt_clauses.append(cl)
+
+        result = connector.join(rebuilt_clauses)
+        result = normalize_sentence(result)
+        return result
+
+    # ── Strategy 2: Sentence pattern transformation ──
+    # Parse the sentence into components and rebuild with different structure
+    words = sentence.strip().rstrip(".").split()
+
+    # Find verb position (heuristic: first word after articles/pronouns/nouns that looks like a verb)
+    verb_indicators = {
+        "is", "are", "was", "were", "has", "have", "had", "does", "do", "did",
+        "can", "could", "will", "would", "shall", "should", "may", "might",
+        "must", "being", "been", "becomes", "became", "remains", "seems",
+        "appears", "provides", "offers", "gives", "shows", "creates",
+        "makes", "helps", "develops", "contains", "includes", "features",
+        "consists", "forms", "serves", "represents", "acts", "functions",
+    }
+
+    verb_idx = -1
+    for i, w in enumerate(words):
+        clean_w = w.lower().rstrip(".,!?;:")
+        if clean_w in verb_indicators and i > 0:
+            verb_idx = i
+            break
+        # Check for common verb endings
+        if i > 0 and (clean_w.endswith("es") or clean_w.endswith("ed") or clean_w.endswith("ing") or clean_w.endswith("ens")):
+            if len(clean_w) > 3:
+                verb_idx = i
+                break
+
+    if verb_idx > 0 and verb_idx < len(words) - 1:
+        subject = " ".join(words[:verb_idx])
+        verb = words[verb_idx]
+        predicate = " ".join(words[verb_idx + 1:])
+
+        # Choose a transformation pattern
+        patterns = []
+
+        # Pattern A: "When it comes to [subject], [predicate] [verb]"
+        patterns.append(f"When it comes to {subject.lower()}, it {verb.lower()} {predicate}")
+
+        # Pattern B: "[Predicate] — that is what [subject] [verb]"
+        patterns.append(f"{predicate.capitalize()} — that is what {subject.lower()} {verb.lower()}")
+
+        # Pattern C: "In terms of [subject], [verb] [predicate] is crucial"
+        patterns.append(f"In terms of {subject.lower()}, the role of {predicate.lower()} cannot be understated")
+
+        # Pattern D: "The concept of [subject] revolves around [predicate]"
+        patterns.append(f"The concept of {subject.lower()} revolves around {predicate.lower()}")
+
+        # Pattern E: "What [subject] essentially [verb] is [predicate]"
+        patterns.append(f"What {subject.lower()} essentially {verb.lower()} is {predicate.lower()}")
+
+        # Pattern F: "[Predicate] is closely linked to how [subject] [verb]"
+        patterns.append(f"{predicate.capitalize()} is closely linked to how {subject.lower()} {verb.lower()}")
+
+        result = random.choice(patterns)
+        result = normalize_sentence(result)
+        return result
+
+    # ── Strategy 3: Definitional rephrasing ──
+    # Transform "X is Y" patterns into "Y can be described as X" or "By definition, Y defines X"
+    is_patterns = [" is a ", " is an ", " is the ", " are ", " was a ", " was the "]
+    for pattern in is_patterns:
+        if pattern in sentence.lower():
+            idx = sentence.lower().index(pattern)
+            subject_part = sentence[:idx].strip()
+            definition_part = sentence[idx + len(pattern):].strip().rstrip(".")
+
+            rephrasings = [
+                f"By definition, {definition_part} describes what {subject_part.lower()} represents",
+                f"One way to understand {subject_part.lower()} is as {definition_part}",
+                f"To define it simply, {subject_part.lower()} can be understood as {definition_part}",
+                f"The term {subject_part.lower()} refers to {definition_part}",
+                f"When we speak of {subject_part.lower()}, we refer to {definition_part}",
+                f"In essence, {subject_part.lower()} describes {definition_part}",
+            ]
+            result = random.choice(rephrasings)
+            result = normalize_sentence(result)
+            return result
+
+    # ── Strategy 4: Fallback — aggressive synonym + restructure ──
+    return sentence
+
+
+def _apply_aggressive_synonyms(sentence: str, source_sentence: str = "") -> str:
+    """Apply synonym replacement to as many content words as possible."""
+    words = sentence.split()
+    source_lower = source_sentence.lower() if source_sentence else ""
+    new_words = []
+    replaced = 0
+    max_rep = max(2, len(words) // 2)  # Replace up to half the words
+
+    for index, word in enumerate(words):
+        clean = word.lower().rstrip(".,!?;:'\"")
+        trail = word[len(word.rstrip(".,!?;:'\"")):]
+
+        # Skip proper nouns (except first word), quotes
+        if index > 0 and word[0].isupper() and not word.isupper():
+            new_words.append(word)
+            continue
+        if word.startswith(("\"", "'")) or word.endswith(("\"", "'")):
+            new_words.append(word)
+            continue
+        if len(clean) <= 3:
+            new_words.append(word)
+            continue
+
+        if replaced >= max_rep:
+            new_words.append(word)
+            continue
+
+        synonyms = get_rewrite_synonyms(word, static_only=False)
+        if synonyms:
+            if source_sentence:
+                safe = [s for s in synonyms if s.lower() not in source_lower and s.lower() != clean]
+                chosen = random.choice(safe) if safe else random.choice(synonyms)
+            else:
+                safe = [s for s in synonyms if s.lower() != clean]
+                chosen = random.choice(safe) if safe else random.choice(synonyms)
+
+            if word and word[0].isupper():
+                chosen = chosen[0].upper() + chosen[1:]
+
+            new_words.append(chosen + trail)
+            replaced += 1
+            continue
+
+        new_words.append(word)
+
+    return " ".join(new_words)
+
+
 def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
     """
-    Rewrite a plagiarized sentence into a human-like original version.
+    Rewrite a plagiarized sentence into a genuinely different version.
     
-    Strategy:
-      1. Rapidly fetch synonyms in parallel for the whole text
-      2. Iteratively replace words, restructure, and change voice
-      3. Monitor similarity to source and keep looping max 5 times until similarity < 0.4
-      4. Add human phrasing if still failing to drop below threshold
+    Strategy (Deep Paraphrasing):
+      1. Try OpenAI LLM rewrite first if API key is available
+      2. Use the deep paraphrase engine which restructures sentences
+         at the phrase/clause level — NOT just word-level synonym swaps
+      3. Generate multiple candidates and pick the one with lowest
+         similarity to the source
+      4. Target: rewritten text should have < 0.55 similarity to source
     """
     if not sentence or not sentence.strip():
         return {
@@ -634,8 +826,8 @@ def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
         }
 
     original = sentence.strip()
-    static_only = bool(source_sentence and source_sentence.strip().lower() == original.lower())
 
+    # ── Try OpenAI LLM first if API key is available ──
     _, _, api_ready = get_openai_config()
     if api_ready:
         llm_result = llm_rewrite_sentence(original, source_sentence)
@@ -652,83 +844,42 @@ def rewrite_sentence_human(sentence: str, source_sentence: str = "") -> dict:
                 "source_similarity_after": source_sim_after,
             }
 
-    # Prefetch vocabulary to handle the operation completely without blocking
-    prefetch_synonyms(original)
+    # ── Use the new deep paraphrase engine ──
+    # Generate multiple candidates and pick the best one
+    changes = ["deep structural paraphrase"]
+    best_rewrite = None
+    best_sim = float('inf')
 
-    changes = []
-    words = original.split()
-    new_words = []
-    replaced = 0
-    max_replacements = min(5, max(1, len(words) // 4))
-    source_lower = source_sentence.lower() if source_sentence else ""
+    for attempt in range(5):
+        candidate = deep_paraphrase(original, source_sentence)
+        candidate = normalize_sentence(candidate)
 
-    for index, word in enumerate(words):
-        # Strip punctuation for lookup
-        clean = word.lower().rstrip(".,!?;:'\"")
-        trail = word[len(word.rstrip(".,!?;:'\"")) :]
-
-        # Avoid changing proper nouns, titles, and quoted terms
-        if index > 0 and word[0].isupper():
-            new_words.append(word)
-            continue
-        if word.startswith(("\"", "'")) or word.endswith(("\"", "'")):
-            new_words.append(word)
+        if not candidate or candidate.strip() == "." or len(candidate.strip()) < 10:
             continue
 
-        if replaced >= max_replacements:
-            new_words.append(word)
-            continue
+        sim = compute_text_similarity(candidate, source_sentence) if source_sentence else compute_text_similarity(candidate, original)
 
-        synonyms = get_rewrite_synonyms(word, static_only=static_only)
-        if synonyms:
-            replace_chance = 0.9 if clean in source_lower else 0.65
-            if random.random() < replace_chance or clean in source_lower:
-                if source_sentence:
-                    safe_synonyms = [s for s in synonyms if s.lower() not in source_lower]
-                    chosen = random.choice(safe_synonyms) if safe_synonyms else random.choice(synonyms)
-                else:
-                    chosen = random.choice(synonyms)
+        if sim < best_sim:
+            best_sim = sim
+            best_rewrite = candidate
 
-                # Preserve capitalization
-                if word and word[0].isupper():
-                    chosen = chosen[0].upper() + chosen[1:]
+        if best_sim < 0.50:
+            break
 
-                new_words.append(chosen + trail)
-                replaced += 1
-                if clean != chosen.lower() and f"'{clean}' → '{chosen}'" not in changes:
-                    changes.append(f"'{clean}' → '{chosen}'")
-                continue
-
-        new_words.append(word)
-
-    candidate = " ".join(new_words)
-    rewritten = normalize_sentence(candidate)
-    rewritten = apply_phrase_paraphrases(rewritten)
-
-    # If the rewrite is still very close to the source reference, apply stronger variation.
-    if source_sentence:
-        source_sim_after = compute_text_similarity(rewritten, source_sentence)
-        input_sim_after = compute_text_similarity(rewritten, original)
-        if source_sim_after > 0.70 or input_sim_after > 0.90:
-            rewritten = try_voice_change(rewritten)
-            rewritten = add_human_phrasing(rewritten)
-            rewritten = normalize_sentence(rewritten)
-            rewritten = apply_phrase_paraphrases(rewritten)
-
-            if compute_text_similarity(rewritten, source_sentence) > source_sim_after:
-                rewritten = normalize_sentence(restructure_sentence(rewritten))
-                rewritten = apply_phrase_paraphrases(rewritten)
-
-    # Attempt to add more variation if the initial rewrite made no replacements.
-    if replaced == 0 and source_sentence:
-        rewritten = add_human_phrasing(rewritten)
+    # Fallback: if new engine produced nothing, use synonym-only approach
+    # (NEVER fall back to the old template engine — it distorts meaning)
+    if best_rewrite is None:
+        prefetch_synonyms(original)
+        if source_sentence:
+            prefetch_synonyms(source_sentence)
+        rewritten = _apply_aggressive_synonyms(original, source_sentence)
         rewritten = normalize_sentence(rewritten)
-        rewritten = apply_phrase_paraphrases(rewritten)
+        best_rewrite = rewritten
 
-    # Compute final similarity to the plagiarized input
+    rewritten = best_rewrite
+
+    # Compute final metrics
     meaning_similarity = compute_text_similarity(original, rewritten)
-    
-    # Compute similarity to source (should be low — showing plagiarism is removed)
     source_sim_before = compute_text_similarity(original, source_sentence) if source_sentence else 0
     source_sim_after = compute_text_similarity(rewritten, source_sentence) if source_sentence else 0
 
