@@ -43,7 +43,7 @@ pip install openai
 
 ---
 
-## 🚀 Run the Application
+## 🚀 Run the Application:
 
 Start the Flask app from the `plagiarism_app` folder:
 
