@@ -158,6 +158,15 @@ html.dark-mode .history-sidebar {
     border-right-color: var(--border-color);
 }
 
+html.dark-mode .sidebar-header {
+    background: rgba(15, 23, 42, 0.6);
+    border-bottom-color: var(--border-color);
+}
+
+html.dark-mode .history-title {
+    color: var(--text-primary);
+}
+
 html.dark-mode .logo-icon {
     background: rgba(99, 102, 241, 0.15);
     border-color: rgba(99, 102, 241, 0.3);
@@ -2130,7 +2139,7 @@ textarea::-webkit-scrollbar-thumb {
 .sidebar-header {
     padding: 24px;
     border-bottom: 1px solid var(--border-color);
-    background: #f8fafc;
+    background: var(--bg-secondary);
     display: flex;
     justify-content: space-between;
     align-items: center;
