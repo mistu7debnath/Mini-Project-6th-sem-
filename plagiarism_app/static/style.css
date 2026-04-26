@@ -587,16 +587,13 @@ body {
 .stat-value {
     font-size: 20px;
     font-weight: 700;
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: white;
     font-family: var(--font-mono);
 }
 
 .stat-label {
     font-size: 12px;
-    color: var(--text-muted);
+    color: white;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-top: 4px;
