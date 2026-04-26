@@ -16,13 +16,11 @@ similarity_model = None
 util = None
 
 try:
-    from transformers import pipeline
+    from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
     from sentence_transformers import SentenceTransformer, util
 
-    paraphraser = pipeline(
-        "text2text-generation",
-        model="Vamsi/T5_Paraphrase_Paws"
-    )
+    tokenizer = AutoTokenizer.from_pretrained("Vamsi/T5_Paraphrase_Paws")
+    paraphraser = AutoModelForSeq2SeqLM.from_pretrained("Vamsi/T5_Paraphrase_Paws")
 
     similarity_model = SentenceTransformer(
         "all-MiniLM-L6-v2"
@@ -32,9 +30,9 @@ try:
 
     print('HAS_NEURAL:', HAS_NEURAL)
 
-except Exception:
+except Exception as e:
     HAS_NEURAL = False
-    print("HAS_NEURAL =", HAS_NEURAL)
+    print(f"HAS_NEURAL = {HAS_NEURAL} (Error: {type(e).__name__})")
 
 
 # ----------------------------------
@@ -196,63 +194,41 @@ def neural_rewrite(text):
     if not HAS_NEURAL:
         return safe_rewrite(text)
 
-    prompt=f"""
-Paraphrase this sentence.
-
-Rules:
-1. Keep meaning identical
-2. Use different vocabulary
-3. Change sentence structure
-4. Reorder clauses where possible
-5. Sound natural and human-written
-6. Avoid repeating original phrases
-
-Sentence:
-{text}
-"""
-
     try:
-
-        outputs=paraphraser(
-            prompt,
+        # Prepare input for T5 model
+        input_text = f"paraphrase: {text} </s>"
+        input_ids = tokenizer.encode(input_text, return_tensors="pt")
+        
+        # Generate paraphrases
+        outputs = paraphraser.generate(
+            input_ids,
             max_length=250,
             do_sample=True,
             temperature=0.9,
             top_p=0.95,
+            num_beams=3,
             num_return_sequences=3
         )
+        
+        best = text
+        best_score = -999
 
-        best=text
-        best_score=-999
-
-        for item in outputs:
-
-            candidate=item["generated_text"]
-
-            candidate=humanize(
-                normalize(candidate)
-            )
+        for output in outputs:
+            candidate = tokenizer.decode(output, skip_special_tokens=True)
+            candidate = humanize(normalize(candidate))
 
             if contains_forbidden(candidate):
                 continue
 
-            sem=semantic_similarity(
-                text,
-                candidate
-            )
+            sem = semantic_similarity(text, candidate)
+            lex = SequenceMatcher(None, text.lower(), candidate.lower()).ratio()
 
-            lex=SequenceMatcher(
-                None,
-                text.lower(),
-                candidate.lower()
-            ).ratio()
+            # Combined score: favor meaning preservation + lexical change
+            score = (sem * 0.7) - (lex * 0.3)
 
-            # Combined score
-            score=(sem*0.7)- (lex*0.3)
-
-            if sem >= 0.80 and score > best_score:
-                best_score=score
-                best=candidate
+            if sem >= 0.70 and score > best_score:  # Lowered threshold to 0.70 for more flexibility
+                best_score = score
+                best = candidate
 
         return best
 
@@ -307,17 +283,13 @@ def deep_paraphrase(sentence):
 
     print("MODEL OUTPUT:", result)
 
-    # Final meaning protection
+    # Final meaning protection: REJECT output only if meaning is significantly degraded (sem < 0.70)
     if semantic_similarity(
         sentence,
         result
-    ) < 0.80:
+    ) < 0.70:
         print("MODEL OUTPUT:", sentence)
         return sentence
-
-    # --- FORCE TEST RETURN ---
-    # Uncomment the next line to test Flask pipeline:
-    # return "A paragraph consists of several sentences focused on one central idea."
 
     return result
 
