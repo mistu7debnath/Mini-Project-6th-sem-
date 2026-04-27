@@ -1541,7 +1541,7 @@
                 localStorage.setItem('lastAutoOriginal', data.original_clean || '');
                 localStorage.setItem('lastAutoReconstructed', data.reconstructed_text || '');
                 localStorage.setItem('lastAutoScore', String(data.detection?.overall_score || 0));
-            } catch (err) {}
+            } catch (err) { }
 
             document.getElementById('results-content').innerHTML = `
                 <div class="results-card fade-in">
@@ -1594,8 +1594,8 @@
                             <button class="btn-copy" onclick="copyToClipboard('${escapeForJs(data.auto_suspected)}', this)">Copy Suspected</button>
                         </div>
                         <div class="text-step reconstructed-text">
-                            <h4>Step 3: System Reconstruction</h4>
-                            <p class="reconstruction-note">${hasSourceRewrite ? 'Reconstructed from matched source sentence for better accuracy.' : 'Reconstructed clean text.'}</p>
+                            <h4>Step 3: Text Reconstruction</h4>
+                            <p class="reconstruction-note">${hasSourceRewrite ? 'Reconstructed from the matched source sentence for better accuracy.' : 'Reconstructed clean text.'}</p>
                             <p>${escapeHtml(data.reconstructed_text)}</p>
                             <button class="btn-copy" onclick="copyToClipboard('${escapeForJs(data.reconstructed_text)}', this)">Copy Clean</button>
                         </div>
