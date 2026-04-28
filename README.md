@@ -60,6 +60,8 @@ A polished, enterprise-grade plagiarism detection and rewrite assistant built fo
 ### Prerequisites
 - Python 3.10+
 - pip package manager
+- Optional (Advanced Features)
+pip install sentence-transformers nltk python-dotenv
 
 ### Core Dependencies
 ```bash
