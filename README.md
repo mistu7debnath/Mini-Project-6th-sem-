@@ -9,7 +9,7 @@ This project helps educators, students, researchers, and content creators verify
 
 ---
 
-## 🚀 Features
+## 🚀 Features:
 
 * Upload or paste text for plagiarism detection
 * Compare text against stored datasets/documents
@@ -21,7 +21,7 @@ This project helps educators, students, researchers, and content creators verify
 
 ---
 
-## 🛠️ Technologies Used for the project
+## 🛠️ Technologies Used for the project:
 
 **Frontend:**
 
