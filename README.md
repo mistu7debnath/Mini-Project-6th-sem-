@@ -14,7 +14,6 @@ This project helps educators, students, researchers, and content creators verify
 * Upload or paste text for plagiarism detection
 * Compare text against stored datasets/documents
 * Similarity score generation
-* Highlight matched content sections
 * User-friendly interface
 * Fast processing using optimized NLP techniques
 * Scalable architecture for future dataset expansion
