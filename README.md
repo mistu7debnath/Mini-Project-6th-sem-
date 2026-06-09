@@ -21,7 +21,7 @@ This project helps educators, students, researchers, and content creators verify
 
 ---
 
-## 🛠️ Technologies Used
+## 🛠️ Technologies Used for the project
 
 **Frontend:**
 
