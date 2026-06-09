@@ -142,8 +142,8 @@ http://127.0.0.1:5000
 * Real-time web plagiarism detection
 * Deep learning–based semantic similarity detection
 * Multi-language plagiarism detection
-* User authentication system
-* Cloud deployment support
+* User authentication system for user
+* Cloud deployment support for user
 
 ---
 
