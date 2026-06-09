@@ -124,7 +124,7 @@ http://127.0.0.1:5000
 3. TF-IDF converts text into numerical vectors.
 4. Cosine similarity compares input text with dataset documents.
 5. Similarity percentage is also generated.
-6. Matching sections are highlighted in results.
+
 
 ---
 
