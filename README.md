@@ -19,7 +19,7 @@ This project helps educators, students, researchers, and content creators verify
 * Fast processing using optimized NLP techniques
 * Scalable architecture for future dataset expansion
 * Dark and light toggle inteface
-* Also have fetures like
+* Also have fetures like history saving
 ---
 
 ## 🛠️ Technologies Used for the project:
