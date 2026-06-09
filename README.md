@@ -18,7 +18,7 @@ This project helps educators, students, researchers, and content creators verify
 * User-friendly interface
 * Fast processing using optimized NLP techniques
 * Scalable architecture for future dataset expansion
-
+* Dark and light toggle inteface
 ---
 
 ## 🛠️ Technologies Used for the project:
